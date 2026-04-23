@@ -356,6 +356,21 @@ function spawnEnemy(){
   label.position.y=labelY+.3;
   group.add(label);
 
+  // Bill kidney hitboxes (pulsing targets)
+  let kidneys=null;
+  if(type.name==='Bill'){
+    const kidneyMat1=new THREE.MeshStandardMaterial({color:0xff0000,emissive:0xff0000,emissiveIntensity:1});
+    const kidneyMat2=new THREE.MeshStandardMaterial({color:0xff0000,emissive:0xff0000,emissiveIntensity:1});
+    const kidneyGeo=new THREE.SphereGeometry(.15,6,6);
+    const k1=new THREE.Mesh(kidneyGeo,kidneyMat1);
+    k1.position.set(-bw/2-.05, body.position.y-bh*0.25, -bd/2-.05);
+    group.add(k1);
+    const k2=new THREE.Mesh(kidneyGeo,kidneyMat2);
+    k2.position.set(bw/2+.05, body.position.y-bh*0.25, -bd/2-.05);
+    group.add(k2);
+    kidneys=[k1,k2];
+  }
+
   // Spawn at random position away from player
   let x,z;
   do{
@@ -371,7 +386,8 @@ function spawnEnemy(){
     maxHp:ENEMY_HP+wave*10,
     fireTimer:Math.random()*ENEMY_FIRE,
     dead:false,deathTimer:0,removed:false,
-    walkPhase:Math.random()*Math.PI*2
+    walkPhase:Math.random()*Math.PI*2,
+    kidneys
   });
 }
 
@@ -479,6 +495,26 @@ document.addEventListener('pointerlockchange',()=>{
 
 
 
+// --- PLAYER BULLET TRACERS ---
+const playerTracers=[];
+function spawnPlayerTracer(origin,dir){
+  const speed=120;
+  const geo=new THREE.SphereGeometry(.06,4,4);
+  const mat=new THREE.MeshStandardMaterial({color:0xffff44,emissive:0xffff88,emissiveIntensity:1.5});
+  const mesh=new THREE.Mesh(geo,mat);
+  mesh.position.copy(origin);
+  // Tracer line
+  const lineGeo=new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0,0,0),
+    dir.clone().multiplyScalar(-1.2)
+  ]);
+  const lineMat=new THREE.LineBasicMaterial({color:0xffff88,transparent:true,opacity:.8});
+  const line=new THREE.Line(lineGeo,lineMat);
+  mesh.add(line);
+  scene.add(mesh);
+  playerTracers.push({mesh,dir:dir.normalize(),speed,age:0,maxAge:1});
+}
+
 // --- LINE OF SIGHT CHECK ---
 const losRaycaster=new THREE.Raycaster();
 function hasLineOfSight(from, to){
@@ -522,26 +558,52 @@ function shoot(){
   gunGroup.rotation.x=-.3;
   setTimeout(()=>gunGroup.rotation.x=0,80);
 
+  // Reset raycaster far to ensure full range
+  raycaster.far=100;
   raycaster.setFromCamera(new THREE.Vector2(0,0),camera);
 
-  let hitEnemy=null,hitDist=Infinity;
+  // Spawn visible bullet tracer
+  const tracerDir=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+  spawnPlayerTracer(camera.position.clone().add(tracerDir.clone().multiplyScalar(0.5)),tracerDir);
+
+  // Check kidney hitboxes first (Bill only, 10x damage)
+  let hitEnemy=null,hitDist=Infinity,hitKidney=false;
+  for(const e of enemies){
+    if(e.dead||!e.kidneys)continue;
+    const hits=raycaster.intersectObjects(e.kidneys);
+    if(hits.length>0&&hits[0].distance<hitDist){
+      hitDist=hits[0].distance;hitEnemy=e;hitKidney=true;
+    }
+  }
+
+  // Check body/head hitboxes
   for(const e of enemies){
     if(e.dead)continue;
     const meshes=[e.body,e.head];
     const hits=raycaster.intersectObjects(meshes);
     if(hits.length>0&&hits[0].distance<hitDist){
-      hitDist=hits[0].distance;hitEnemy=e;
+      hitDist=hits[0].distance;hitEnemy=e;hitKidney=false;
     }
   }
 
   if(hitEnemy){
-    const headshot=raycaster.intersectObjects([hitEnemy.head]).length>0;
-    const dmg=headshot?BULLET_DMG*2:BULLET_DMG;
-    hitEnemy.hp-=dmg;
-    hitEnemy.body.material.emissive.set(0xffffff);
-    hitEnemy.head.material.emissive.set(0xffffff);
-    setTimeout(()=>{hitEnemy.body.material.emissive.set(0);hitEnemy.head.material.emissive.set(0)},80);
-    if(hitEnemy.hp<=0)killEnemy(hitEnemy,headshot);
+    if(hitKidney){
+      const dmg=BULLET_DMG*10;
+      hitEnemy.hp-=dmg;
+      hitEnemy.body.material.emissive.set(0xff0000);
+      hitEnemy.head.material.emissive.set(0xff0000);
+      addKillFeed('KIDNEY SHOT on '+hitEnemy.type+'! '+dmg+' dmg');
+      setTimeout(()=>{hitEnemy.body.material.emissive.set(0);hitEnemy.head.material.emissive.set(0)},120);
+    } else {
+      const headshot=raycaster.intersectObjects([hitEnemy.head]).length>0;
+      const dmg=headshot?BULLET_DMG*2:BULLET_DMG;
+      hitEnemy.hp-=dmg;
+      hitEnemy.body.material.emissive.set(0xffffff);
+      hitEnemy.head.material.emissive.set(0xffffff);
+      setTimeout(()=>{hitEnemy.body.material.emissive.set(0);hitEnemy.head.material.emissive.set(0)},80);
+      if(hitEnemy.hp<=0)killEnemy(hitEnemy,headshot);
+    }
+    if(hitEnemy.hp<=0&&!hitEnemy.dead)killEnemy(hitEnemy,false);
   }
 
   const wallHits=raycaster.intersectObjects(collidables);
@@ -554,19 +616,21 @@ function shoot(){
 }
 
 function knifeAttack(){
-  if(!alive||knifeCooldown>0||reloading)return;
+  if(!alive||knifeCooldown>0)return;
   knifeCooldown=KNIFE_CD;
   playSound('knife');
   showKnifeSlash();
 
-  // Check enemies in range
-  raycaster.setFromCamera(new THREE.Vector2(0,0),camera);
-  raycaster.far=KNIFE_RANGE;
+  // Use a separate knife raycaster so gun raycaster is never affected
+  const knifeRay=new THREE.Raycaster();
+  knifeRay.far=KNIFE_RANGE;
+  knifeRay.setFromCamera(new THREE.Vector2(0,0),camera);
+
   let hitEnemy=null,hitDist=Infinity;
   for(const e of enemies){
     if(e.dead)continue;
     const meshes=[e.body,e.head];
-    const hits=raycaster.intersectObjects(meshes);
+    const hits=knifeRay.intersectObjects(meshes);
     if(hits.length>0&&hits[0].distance<hitDist){hitDist=hits[0].distance;hitEnemy=e}
   }
   if(hitEnemy){
@@ -578,6 +642,7 @@ function knifeAttack(){
     if(hitEnemy.hp<=0)killEnemy(hitEnemy,false,true);
   }
 }
+
 
 function showKnifeSlash(){
   const c=document.getElementById('knife-slash');
@@ -732,6 +797,8 @@ function restart(){
   pickups.forEach(p=>scene.remove(p.mesh));pickups=[];
   // Remove all projectiles
   projectiles.forEach(p=>scene.remove(p.mesh));projectiles=[];
+  // Remove all player tracers
+  playerTracers.forEach(t=>scene.remove(t.mesh));playerTracers=[];
 
   // Reset player position
   camera.position.set(0,PLAYERH,0);
@@ -873,6 +940,16 @@ function animate(){
         e.la.rotation.x*=.9;e.ra.rotation.x*=.9;
       }
 
+      // Kidney pulse animation (Bill)
+      if(e.kidneys){
+        const pulse=Math.sin(now*0.006)*0.5+0.5; // 0-1 alternating
+        for(const k of e.kidneys){
+          k.material.emissiveIntensity=0.5+pulse*1.5;
+          if(pulse>0.5)k.material.emissive.set(0xffffff);
+          else k.material.emissive.set(0xff0000);
+        }
+      }
+
       // Shoot — only if line of sight is clear
       e.fireTimer-=dt;
       if(e.fireTimer<=0&&dist<ENEMY_RANGE){
@@ -923,6 +1000,14 @@ function animate(){
         scene.remove(p.mesh);
         projectiles.splice(i,1);
       }
+    }
+
+    // Update player tracers
+    for(let i=playerTracers.length-1;i>=0;i--){
+      const t=playerTracers[i];
+      t.age+=dt;
+      t.mesh.position.addScaledVector(t.dir,t.speed*dt);
+      if(t.age>t.maxAge){scene.remove(t.mesh);playerTracers.splice(i,1)}
     }
 
     // Pickups
