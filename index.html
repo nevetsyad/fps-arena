@@ -43,11 +43,15 @@ canvas{display:block}
 #settings-gear:hover{color:#0ff;border-color:#0ff}
 #blocker-settings{margin-top:20px;padding:10px 30px;font-size:16px;font-family:'Courier New',monospace;background:transparent;border:1px solid #888;color:#ccc;cursor:pointer;text-transform:uppercase;letter-spacing:2px}
 #blocker-settings:hover{border-color:#0ff;color:#0ff}
+#reload-bar{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);width:120px;height:8px;background:rgba(0,0,0,.6);border:1px solid #888;display:none;z-index:10;pointer-events:none}
+#reload-bar-fill{height:100%;background:#0ff;width:0%;transition:none}
+#reload-bar-text{position:absolute;width:100%;text-align:center;top:-16px;color:#0ff;font-size:11px;font-family:'Courier New',monospace;text-transform:uppercase;letter-spacing:1px}
+#knife-slash{position:fixed;inset:0;pointer-events:none;z-index:11;opacity:0;transition:opacity .08s}
 </style>
 </head>
 <body>
 <div id="blocker"><div style="text-align:center"><h1>FPS ARENA</h1><p>Click to play — WASD to move, Mouse to aim, Click to shoot, R to reload</p><button id="blocker-settings">Settings</button></div></div>
-<div id="settings-panel"><h2>Settings</h2><div class="setting-row"><label>Mouse Sensitivity</label><input type="range" id="sens-slider" min="0.5" max="5.0" step="0.1" value="2.0"><span class="val" id="sens-val">2.0</span></div><button id="settings-close">Close</button></div>
+<div id="settings-panel"><h2>Settings</h2><div class="setting-row"><label>Mouse Sensitivity</label><input type="range" id="sens-slider" min="0.5" max="5.0" step="0.1" value="2.0"><span class="val" id="sens-val">2.0</span></div><div class="setting-row"><label>Sound Volume</label><input type="range" id="vol-slider" min="0" max="100" step="5" value="80"><span class="val" id="vol-val">80%</span></div><button id="settings-close">Close</button></div>
 <button id="settings-gear">⚙</button>
 <div id="hud">
   <div class="hud-section"><span class="hud-label">Health</span><span class="hud-value health" id="hpVal">100</span></div>
@@ -61,6 +65,8 @@ canvas{display:block}
 <div id="killfeed"></div>
 <div id="wave-info"></div>
 <div id="enemy-counter"></div>
+<div id="reload-bar"><div id="reload-bar-text">Reloading</div><div id="reload-bar-fill"></div></div>
+<canvas id="knife-slash" width="" height=""></canvas>
 <div id="gameover"><h1>GAME OVER</h1><p id="finalScore"></p><button id="restartBtn">Restart Game</button></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -81,10 +87,48 @@ const ENEMY_TYPES=[
 ];
 let enemyTypeIndex=0;
 
+// --- SOUND SYSTEM (Web Audio API) ---
+let audioCtx=null;
+let soundVolume=parseFloat(localStorage.getItem('fps-vol')||'80')/100;
+const volSlider=document.getElementById('vol-slider');
+const volVal=document.getElementById('vol-val');
+function updateVolDisplay(){volVal.textContent=volSlider.value+'%'}
+volSlider.value=Math.round(soundVolume*100);updateVolDisplay();
+volSlider.addEventListener('input',()=>{soundVolume=volSlider.value/100;localStorage.setItem('fps-vol',volSlider.value);updateVolDisplay()});
+
+function ensureAudio(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume()}
+
+function playSound(type){
+  ensureAudio();
+  const ctx=audioCtx;const g=ctx.createGain();g.connect(ctx.destination);const now=ctx.currentTime;
+  const vol=soundVolume;
+  if(type==='gunshot'){
+    // Short noise burst
+    const buf=ctx.createBuffer(1,ctx.sampleRate*0.08,ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,2);
+    const src=ctx.createBufferSource();src.buffer=buf;g.gain.setValueAtTime(vol*0.5,now);g.gain.exponentialRampToValueAtTime(0.01,now+0.08);src.connect(g);src.start(now);
+  } else if(type==='reload'){
+    const osc=ctx.createOscillator();osc.type='square';osc.frequency.setValueAtTime(800,now);osc.frequency.setValueAtTime(600,now+0.05);g.gain.setValueAtTime(vol*0.3,now);g.gain.exponentialRampToValueAtTime(0.01,now+0.1);osc.connect(g);osc.start(now);osc.stop(now+0.1);
+  } else if(type==='knife'){
+    const buf=ctx.createBuffer(1,ctx.sampleRate*0.2,ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++){const t=i/ctx.sampleRate;d[i]=(Math.random()*2-1)*Math.sin(t*200)*Math.pow(1-t/0.2,1.5)}
+    const src=ctx.createBufferSource();src.buffer=buf;g.gain.setValueAtTime(vol*0.4,now);g.gain.exponentialRampToValueAtTime(0.01,now+0.2);src.connect(g);src.start(now);
+  } else if(type==='enemyDeath'){
+    const osc=ctx.createOscillator();osc.type='sawtooth';osc.frequency.setValueAtTime(200,now);osc.frequency.exponentialRampToValueAtTime(50,now+0.3);g.gain.setValueAtTime(vol*0.35,now);g.gain.exponentialRampToValueAtTime(0.01,now+0.3);osc.connect(g);osc.start(now);osc.stop(now+0.3);
+  } else if(type==='hurt'){
+    const osc=ctx.createOscillator();osc.type='sawtooth';osc.frequency.setValueAtTime(150,now);osc.frequency.setValueAtTime(100,now+0.1);g.gain.setValueAtTime(vol*0.4,now);g.gain.exponentialRampToValueAtTime(0.01,now+0.2);osc.connect(g);osc.start(now);osc.stop(now+0.2);
+  } else if(type==='pickup'){
+    const osc=ctx.createOscillator();osc.type='sine';osc.frequency.setValueAtTime(880,now);osc.frequency.setValueAtTime(1320,now+0.06);osc.frequency.setValueAtTime(1760,now+0.12);g.gain.setValueAtTime(vol*0.3,now);g.gain.exponentialRampToValueAtTime(0.01,now+0.25);osc.connect(g);osc.start(now);osc.stop(now+0.25);
+  }
+}
+
 // --- STATE ---
 let hp=MAXHP, ammo=30, reserve=90, score=0, wave=1, alive=true, playing=false;
-let enemies=[], pickups=[], projectiles=[], fireCooldown=0, reloading=false, reloadTimer=0;
+let enemies=[], pickups=[], projectiles=[], fireCooldown=0, reloading=false, reloadTimer=0, reloadDuration=1.5;
 let yaw=0, pitch=0, velocity=new THREE.Vector3();
+let knifeCooldown=0;const KNIFE_CD=0.5,KNIFE_RANGE=2.5,KNIFE_DMG_MIN=75,KNIFE_DMG_MAX=100;
 
 // --- THREE SETUP ---
 const scene=new THREE.Scene();
@@ -390,7 +434,9 @@ document.addEventListener('mousedown',e=>{
     renderer.domElement.requestPointerLock();return;
   }
   if(e.button===0)shoot();
+  if(e.button===2)knifeAttack();
 });
+document.addEventListener('contextmenu',e=>e.preventDefault());
 
 // --- POINTER LOCK ---
 const blocker=document.getElementById('blocker');
@@ -448,6 +494,7 @@ function shoot(){
   if(!alive||fireCooldown>0||reloading)return;
   if(ammo<=0){if(reserve>0)startReload();return}
   ammo--;fireCooldown=FIRE_RATE;
+  playSound('gunshot');
 
   const mf=document.getElementById('muzzle');
   mf.style.opacity=1;setTimeout(()=>mf.style.opacity=0,50);
@@ -486,15 +533,67 @@ function shoot(){
   updateHUD();
 }
 
-function startReload(){reloading=true;reloadTimer=1.5;}
+function knifeAttack(){
+  if(!alive||knifeCooldown>0||reloading)return;
+  knifeCooldown=KNIFE_CD;
+  playSound('knife');
+  showKnifeSlash();
 
-function killEnemy(e,headshot){
+  // Check enemies in range
+  raycaster.setFromCamera(new THREE.Vector2(0,0),camera);
+  raycaster.far=KNIFE_RANGE;
+  let hitEnemy=null,hitDist=Infinity;
+  for(const e of enemies){
+    if(e.dead)continue;
+    const meshes=[e.body,e.head];
+    const hits=raycaster.intersectObjects(meshes);
+    if(hits.length>0&&hits[0].distance<hitDist){hitDist=hits[0].distance;hitEnemy=e}
+  }
+  if(hitEnemy){
+    const dmg=KNIFE_DMG_MIN+Math.floor(Math.random()*(KNIFE_DMG_MAX-KNIFE_DMG_MIN+1));
+    hitEnemy.hp-=dmg;
+    hitEnemy.body.material.emissive.set(0xffffff);
+    hitEnemy.head.material.emissive.set(0xffffff);
+    setTimeout(()=>{hitEnemy.body.material.emissive.set(0);hitEnemy.head.material.emissive.set(0)},80);
+    if(hitEnemy.hp<=0)killEnemy(hitEnemy,false,true);
+  }
+}
+
+function showKnifeSlash(){
+  const c=document.getElementById('knife-slash');
+  c.width=innerWidth;c.height=innerHeight;
+  const ctx=c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  const cx=c.width/2,cy=c.height/2,r=Math.min(c.width,c.height)*0.35;
+  ctx.strokeStyle='rgba(255,255,255,0.8)';ctx.lineWidth=4;ctx.shadowColor='#fff';ctx.shadowBlur=15;
+  ctx.beginPath();
+  ctx.arc(cx,cy,r,-Math.PI*0.6,-Math.PI*0.1);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx,cy,r*0.85,-Math.PI*0.55,-Math.PI*0.15);
+  ctx.lineWidth=2;ctx.stroke();
+  c.style.opacity=1;
+  setTimeout(()=>{c.style.opacity=0;ctx.clearRect(0,0,c.width,c.height)},150);
+}
+
+function startReload(){reloading=true;reloadTimer=reloadDuration=1.5;playSound('reload');document.getElementById('reload-bar').style.display='block'}
+
+function killEnemy(e,headshot,knife){
   e.dead=true;e.deathTimer=1.2;
-  const pts=headshot?150:100;
+  playSound('enemyDeath');
+  const pts=knife?200:headshot?150:100;
   score+=pts;
-  const txt=headshot?'HEADSHOT on '+e.type+'! +150':'Eliminated '+e.type+' +'+pts;
+  let txt;
+  if(knife)txt='KNIFED '+e.type+'! +200';
+  else if(headshot)txt='HEADSHOT on '+e.type+'! +150';
+  else txt='Eliminated '+e.type+' +'+pts;
   addKillFeed(txt);
   updateHUD();
+
+  // Ammo drop ~50% chance
+  if(Math.random()<0.5){
+    spawnPickup(e.group.position.x,e.group.position.z,'ammo');
+  }
 
   if(enemies.every(en=>en.dead)){
     wave++;
@@ -530,6 +629,7 @@ function addKillFeed(text){
 function damagePlayer(dmg){
   if(!alive)return;
   hp-=dmg;
+  playSound('hurt');
   const d=document.getElementById('damage');
   d.style.opacity=.6;setTimeout(()=>d.style.opacity=0,200);
   if(hp<=0){hp=0;die()}
@@ -642,13 +742,19 @@ function animate(){
     // Reload
     if(reloading){
       reloadTimer-=dt;
+      const prog=1-reloadTimer/reloadDuration;
+      const barFill=document.getElementById('reload-bar-fill');
+      barFill.style.width=(prog*100)+'%';
       if(reloadTimer<=0){
         reloading=false;
         const need=30-ammo,take=Math.min(need,reserve);
         ammo+=take;reserve-=take;
+        document.getElementById('reload-bar').style.display='none';
+        playSound('reload');
         updateHUD();
       }
     }
+    if(knifeCooldown>0)knifeCooldown-=dt;
 
     // Enemy AI
     for(const e of enemies){
@@ -754,6 +860,7 @@ function animate(){
         if(p.type==='health'&&hp<MAXHP){hp=Math.min(MAXHP,hp+25)}
         else if(p.type==='ammo'){reserve+=30}
         else continue;
+        playSound('pickup');
         scene.remove(p.mesh);pickups.splice(i,1);
         updateHUD();
       }
