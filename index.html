@@ -47,10 +47,36 @@ canvas{display:block}
 #reload-bar-fill{height:100%;background:#0ff;width:0%;transition:none}
 #reload-bar-text{position:absolute;width:100%;text-align:center;top:-16px;color:#0ff;font-size:11px;font-family:'Courier New',monospace;text-transform:uppercase;letter-spacing:1px}
 #knife-slash{position:fixed;inset:0;pointer-events:none;z-index:11;opacity:0;transition:opacity .08s}
+#name-entry{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;flex-direction:column;z-index:250}
+#name-entry h2{color:#f44;font-size:42px;text-shadow:0 0 20px #f44;margin-bottom:8px}
+#name-entry .final-stats{color:#ccc;font-size:18px;margin-bottom:24px}
+#name-entry label{color:#0ff;font-size:16px;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px}
+#name-entry input{background:#111;border:1px solid #0ff;color:#0ff;font-family:'Courier New',monospace;font-size:22px;padding:10px 16px;text-align:center;width:280px;outline:none;margin-bottom:16px}
+#name-entry input:focus{border-color:#0ff;box-shadow:0 0 12px #0ff}
+#name-submit{padding:12px 36px;font-size:18px;font-family:'Courier New',monospace;background:#0ff;color:#000;border:none;cursor:pointer;text-transform:uppercase;letter-spacing:3px}
+#name-submit:hover{background:#0cc}
+#leaderboard{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;flex-direction:column;z-index:260}
+#leaderboard h2{color:#0ff;font-size:36px;text-shadow:0 0 20px #0ff;margin-bottom:20px}
+#leaderboard table{border-collapse:collapse;width:90%;max-width:500px}
+#leaderboard th{color:#888;font-size:13px;text-transform:uppercase;letter-spacing:2px;padding:6px 12px;border-bottom:1px solid #333}
+#leaderboard td{color:#ccc;font-size:16px;padding:8px 12px;text-align:center}
+#leaderboard tr:nth-child(even) td{background:rgba(255,255,255,.03)}
+#leaderboard .rank-col{color:#0ff;font-weight:bold}
+#leaderboard .name-col{text-align:left;color:#fff}
+#leaderboard .score-col{color:#0f0;text-shadow:0 0 6px #0f0;font-weight:bold}
+#leaderboard .wave-col{color:#ff0}
+#leaderboard .new-score td{color:#f44;text-shadow:0 0 8px #f44}
+#leaderboard .new-score .name-col{color:#f44}
+#leaderboard .new-score .score-col{color:#f44;text-shadow:0 0 8px #f44}
+#lb-buttons{margin-top:24px;display:flex;gap:16px}
+#lb-buttons button{padding:12px 30px;font-size:16px;font-family:'Courier New',monospace;background:transparent;border:1px solid #888;color:#ccc;cursor:pointer;text-transform:uppercase;letter-spacing:2px}
+#lb-buttons button:hover{border-color:#0ff;color:#0ff}
+#blocker-hiscores{margin-top:12px;padding:10px 30px;font-size:16px;font-family:'Courier New',monospace;background:transparent;border:1px solid #888;color:#ccc;cursor:pointer;text-transform:uppercase;letter-spacing:2px}
+#blocker-hiscores:hover{border-color:#0ff;color:#0ff}
 </style>
 </head>
 <body>
-<div id="blocker"><div style="text-align:center"><h1>FPS ARENA</h1><p>Click to play — WASD to move, Mouse to aim, Click to shoot, R to reload</p><button id="blocker-settings">Settings</button></div></div>
+<div id="blocker"><div style="text-align:center"><h1>FPS ARENA</h1><p>Click to play — WASD to move, Mouse to aim, Click to shoot, R to reload</p><button id="blocker-settings">Settings</button><button id="blocker-hiscores">High Scores</button></div></div>
 <div id="settings-panel"><h2>Settings</h2><div class="setting-row"><label>Mouse Sensitivity</label><input type="range" id="sens-slider" min="0.5" max="5.0" step="0.1" value="2.0"><span class="val" id="sens-val">2.0</span></div><div class="setting-row"><label>Sound Volume</label><input type="range" id="vol-slider" min="0" max="100" step="5" value="80"><span class="val" id="vol-val">80%</span></div><button id="settings-close">Close</button></div>
 <button id="settings-gear">⚙</button>
 <div id="hud">
@@ -67,7 +93,9 @@ canvas{display:block}
 <div id="enemy-counter"></div>
 <div id="reload-bar"><div id="reload-bar-text">Reloading</div><div id="reload-bar-fill"></div></div>
 <canvas id="knife-slash" width="" height=""></canvas>
-<div id="gameover"><h1>GAME OVER</h1><p id="finalScore"></p><button id="restartBtn">Restart Game</button></div>
+<div id="name-entry"><h2>GAME OVER</h2><div class="final-stats" id="name-final-stats"></div><label for="player-name">Enter Your Name</label><input type="text" id="player-name" maxlength="16" placeholder="Anonymous"><button id="name-submit">Submit</button></div>
+<div id="leaderboard"><h2>HIGH SCORES</h2><table><thead><tr><th>Rank</th><th>Name</th><th>Score</th><th>Wave</th></tr></thead><tbody id="lb-body"></tbody></table><div id="lb-buttons"><button id="lb-restart">Play Again</button><button id="lb-menu">Menu</button></div></div>
+<div id="gameover" style="display:none"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -449,15 +477,7 @@ document.addEventListener('pointerlockchange',()=>{
   blocker.style.display=playing?'none':'flex';
 });
 
-// --- RESTART BUTTON ---
-document.getElementById('restartBtn').addEventListener('click',e=>{
-  e.stopPropagation();
-  restart();
-});
-// Also clicking gameover background (not button) restarts
-document.getElementById('gameover').addEventListener('click',()=>{
-  restart();
-});
+
 
 // --- LINE OF SIGHT CHECK ---
 const losRaycaster=new THREE.Raycaster();
@@ -639,10 +659,66 @@ function damagePlayer(dmg){
 function die(){
   alive=false;
   document.exitPointerLock();
-  const go=document.getElementById('gameover');
-  go.style.display='flex';
-  document.getElementById('finalScore').textContent='Score: '+score+' | Wave: '+wave;
+  showNameEntry();
 }
+
+function showNameEntry(){
+  const ne=document.getElementById('name-entry');
+  document.getElementById('name-final-stats').textContent='Score: '+score+' | Wave: '+wave;
+  const input=document.getElementById('player-name');
+  input.value=localStorage.getItem('fps-arena-lastname')||'';
+  ne.style.display='flex';
+  setTimeout(()=>input.focus(),100);
+}
+
+function getHighScores(){
+  try{return JSON.parse(localStorage.getItem('fps-arena-highscores'))||[]}catch(e){return[]}
+}
+
+function saveHighScore(name,score,wave){
+  let scores=getHighScores();
+  scores.push({name,score,wave,date:Date.now()});
+  scores.sort((a,b)=>b.score-a.score);
+  scores=scores.slice(0,10);
+  localStorage.setItem('fps-arena-highscores',JSON.stringify(scores));
+  localStorage.setItem('fps-arena-lastname',name);
+  return scores.findIndex(s=>s.score===score&&s.name===name&&s.date===scores[scores.indexOf(s)].date);
+}
+
+function renderLeaderboard(highlightScore){
+  const scores=getHighScores();
+  const tbody=document.getElementById('lb-body');
+  tbody.innerHTML='';
+  if(scores.length===0){tbody.innerHTML='<tr><td colspan="4" style="color:#555">No scores yet</td></tr>';return}
+  scores.forEach((s,i)=>{
+    const tr=document.createElement('tr');
+    const isNew=highlightScore!=null&&s.score===highlightScore&&i===scores.findIndex(x=>x.score===highlightScore);
+    if(isNew)tr.className='new-score';
+    tr.innerHTML='<td class="rank-col">'+(i+1)+'</td><td class="name-col">'+escHtml(s.name)+'</td><td class="score-col">'+s.score+'</td><td class="wave-col">'+s.wave+'</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+function submitScore(){
+  const input=document.getElementById('player-name');
+  const name=input.value.trim()||'Anonymous';
+  saveHighScore(name,score,wave);
+  document.getElementById('name-entry').style.display='none';
+  showLeaderboard(score);
+}
+
+function showLeaderboard(highlightScore){
+  renderLeaderboard(highlightScore);
+  document.getElementById('leaderboard').style.display='flex';
+}
+
+document.getElementById('name-submit').addEventListener('click',submitScore);
+document.getElementById('player-name').addEventListener('keydown',e=>{if(e.key==='Enter')submitScore()});
+document.getElementById('lb-restart').addEventListener('click',()=>{document.getElementById('leaderboard').style.display='none';restart()});
+document.getElementById('lb-menu').addEventListener('click',()=>{document.getElementById('leaderboard').style.display='none';blocker.style.display='flex'});
+document.getElementById('blocker-hiscores').addEventListener('click',e=>{e.stopPropagation();showLeaderboard(null)});
 
 function restart(){
   // Full reset
