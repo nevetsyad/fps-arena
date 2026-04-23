@@ -111,7 +111,7 @@ const ENEMY_TYPES=[
   {name:'Matt',   color:0x22aa44, headColor:0x44cc66, bodyW:.8,  bodyH:1.0, bodyD:.5, headR:.28, scale:1.0, hat:'flatcap', hatColor:0x116622},
   {name:'Brighton',color:0x9922cc,headColor:0xcc44ee, bodyW:.45, bodyH:1.1, bodyD:.35,headR:.24, scale:.95,hat:'spiky', hatColor:0xbb33ee},
   {name:'Jeff',   color:0xdd7711, headColor:0xee9933, bodyW:.6,  bodyH:1.2, bodyD:.4, headR:.26, scale:1.0, hat:'sunglasses', hatColor:0x111111},
-  {name:'Bill',   color:0xcc2222, headColor:0xee4444, bodyW:.7,  bodyH:1.4, bodyD:.5, headR:.3,  scale:1.2, hat:'crown', hatColor:0xffcc00}
+  {name:'Bill',   color:0xddcc22, headColor:0xeebb33, bodyW:.7,  bodyH:1.4, bodyD:.5, headR:.3,  scale:1.2, hat:'crown', hatColor:0xffcc00, melee:true, speed:5.5}
 ];
 let enemyTypeIndex=0;
 
@@ -342,9 +342,20 @@ function spawnEnemy(){
   const ra=new THREE.Mesh(armGeo,bodyMat.clone());
   ra.position.set(bw/2+.12*sc,body.position.y,0);ra.castShadow=true;group.add(ra);
 
-  // Gun in right hand
-  const gun=new THREE.Mesh(new THREE.BoxGeometry(.08,.08,.4),new THREE.MeshStandardMaterial({color:0x444444}));
-  gun.position.set(0,0,-.25);ra.add(gun);
+  // Gun or katana in right hand
+  let katana=null;
+  if(type.melee){
+    // Katana handle
+    const handle=new THREE.Mesh(new THREE.BoxGeometry(.06,.06,.25),new THREE.MeshStandardMaterial({color:0x553311}));
+    handle.position.set(0,0,-.12);ra.add(handle);
+    // Katana blade
+    const blade=new THREE.Mesh(new THREE.BoxGeometry(.04,.04,1.0),new THREE.MeshStandardMaterial({color:0xcccccc,metalness:.8,roughness:.2}));
+    blade.position.set(0,0,-.75);ra.add(blade);
+    katana=ra;
+  } else {
+    const gun=new THREE.Mesh(new THREE.BoxGeometry(.08,.08,.4),new THREE.MeshStandardMaterial({color:0x444444}));
+    gun.position.set(0,0,-.25);ra.add(gun);
+  }
 
   // Legs (separate left/right for walk animation)
   const legGeo=new THREE.BoxGeometry(.2*sc,.8*sc,.2*sc);
@@ -387,7 +398,7 @@ function spawnEnemy(){
     fireTimer:Math.random()*ENEMY_FIRE,
     dead:false,deathTimer:0,removed:false,
     walkPhase:Math.random()*Math.PI*2,
-    kidneys
+    kidneys, katana, meleeSwing:0, meleeCooldown:0
   });
 }
 
@@ -916,8 +927,10 @@ function animate(){
       e.group.rotation.y=Math.atan2(dx,dz);
 
       // Move toward player (with wall collision)
-      if(dist>3.5){
-        const spd=ENEMY_SPEED+wave*0.3;
+      const isMelee=e.type==='Bill';
+      const stopDist=isMelee?1.5:3.5;
+      if(dist>stopDist){
+        const spd=isMelee?(e.katana?5.5:ENEMY_SPEED):(ENEMY_SPEED+wave*0.3);
         const moveX=dx/dist*spd*dt;
         const moveZ=dz/dist*spd*dt;
 
@@ -940,6 +953,23 @@ function animate(){
         e.la.rotation.x*=.9;e.ra.rotation.x*=.9;
       }
 
+      // Melee attack (Bill katana)
+      if(isMelee){
+        e.meleeCooldown-=dt;
+        if(dist<2.0 && e.meleeCooldown<=0){
+          damagePlayer(15+wave*2);
+          e.meleeCooldown=0.8;
+          e.meleeSwing=1.0;
+        }
+        // Katana swing animation
+        if(e.meleeSwing>0){
+          e.meleeSwing-=dt*4;
+          if(e.katana)e.katana.rotation.x=-Math.sin(e.meleeSwing*Math.PI)*1.2;
+        } else if(e.katana){
+          e.katana.rotation.x*=.9;
+        }
+      }
+
       // Kidney pulse animation (Bill)
       if(e.kidneys){
         const pulse=Math.sin(now*0.006)*0.5+0.5; // 0-1 alternating
@@ -950,7 +980,8 @@ function animate(){
         }
       }
 
-      // Shoot — only if line of sight is clear
+      // Shoot — only if line of sight is clear (not melee enemies)
+      if(!isMelee){
       e.fireTimer-=dt;
       if(e.fireTimer<=0&&dist<ENEMY_RANGE){
         e.fireTimer=Math.max(.5,ENEMY_FIRE-wave*0.05);
@@ -970,7 +1001,7 @@ function animate(){
           spawnProjectile(eyePos,target,dmg,e.typeColor);
         }
       }
-    }
+      } // end non-melee
     enemies=enemies.filter(e=>!e.removed);
 
     // Update projectiles
