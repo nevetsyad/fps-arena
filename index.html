@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>FPS Arena</title>
+<title>Curing Bill — St. Mary's Memorial Hospital</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{overflow:hidden;background:#000;font-family:'Courier New',monospace}
@@ -93,13 +93,13 @@ canvas{display:block}
 <p style="color:#ffccaa;font-size:17px;line-height:1.7;margin-bottom:6px">Now he's got <b style="color:#f44">rabies from kidney disease</b> — yes, that's a thing now — and he's chasing people with a katana screaming <span style="color:#ffdd00;font-style:italic">"MY BODY MY CHOICE!"</span></p>
 <p style="color:#ffccaa;font-size:17px;line-height:1.7;margin-bottom:14px">You're not here to kill Bill. You're here to <b style="color:#0f0;text-shadow:0 0 8px #0f0">CURE</b> Bill. Big difference. <span style="color:#888">(Legally speaking.)</span></p>
 <div style="text-align:left;max-width:440px;margin:0 auto 12px">
-<p style="color:#ffaaaa;font-size:17px;line-height:1.8;margin-bottom:5px">🔪 <b>Scavenge</b> the 7 donor kidneys scattered across the arena</p>
+<p style="color:#ffaaaa;font-size:17px;line-height:1.8;margin-bottom:5px">🔪 <b>Scavenge</b> the 7 donor kidneys scattered across the hospital</p>
 <p style="color:#ffaaaa;font-size:17px;line-height:1.8;margin-bottom:5px">💚 <b>Walk up to Bill</b> and deliver the goods like a very uninsured surgeon</p>
 <p style="color:#ffaaaa;font-size:17px;line-height:1.8;margin-bottom:5px">🏆 <b>Cure him.</b> Become the hero modern medicine deserves.</p>
 </div>
 <p style="color:#f66;font-size:15px;line-height:1.6;margin-top:8px;font-style:italic">⚠ Failure = getting disemboweled by a man who can't even pee right ⚠</p>
 </div>
-<h1 style="color:#ffdd00;text-shadow:0 0 20px #f80">FPS ARENA</h1><p style="margin-bottom:8px">WASD to move · Mouse to aim · Click to shoot · R to reload · E for knife · Right-click for knife</p><button id="play-btn">▶ PLAY</button><div style="margin-top:20px;display:flex;gap:12px;justify-content:center"><button id="blocker-settings">Settings</button><button id="blocker-hiscores">High Scores</button></div></div></div>
+<h1 style="color:#ffdd00;text-shadow:0 0 20px #f80">ST. MARY'S MEMORIAL</h1><p style="margin-bottom:8px">WASD to move · Mouse to aim · Click to shoot · R to reload · E for knife · Right-click for knife</p><button id="play-btn">▶ PLAY</button><div style="margin-top:20px;display:flex;gap:12px;justify-content:center"><button id="blocker-settings">Settings</button><button id="blocker-hiscores">High Scores</button></div></div></div>
 <div id="settings-panel"><h2>Settings</h2><div class="setting-row"><label>Mouse Sensitivity</label><input type="range" id="sens-slider" min="0.5" max="5.0" step="0.1" value="2.0"><span class="val" id="sens-val">2.0</span></div><div class="setting-row"><label>Sound Volume</label><input type="range" id="vol-slider" min="0" max="100" step="5" value="80"><span class="val" id="vol-val">80%</span></div><button id="settings-close">Close</button></div>
 <button id="settings-gear">⚙</button>
 <div id="hud">
@@ -190,8 +190,8 @@ let currentWeapon='gun';
 
 // --- THREE SETUP ---
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x1a1a2e);
-scene.fog=new THREE.Fog(0x1a1a2e,20,60);
+scene.background=new THREE.Color(0xe8e8ee);
+scene.fog=new THREE.Fog(0xe8e8ee,25,55);
 
 const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,0.1,100);
 camera.position.set(0,PLAYERH,0);
@@ -204,9 +204,9 @@ renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 // Lights
-const ambient=new THREE.AmbientLight(0x404060,0.6);
+const ambient=new THREE.AmbientLight(0xddeeff,1.2);
 scene.add(ambient);
-const dirLight=new THREE.DirectionalLight(0xffeedd,0.8);
+const dirLight=new THREE.DirectionalLight(0xffffff,0.4);
 dirLight.position.set(10,20,10);
 dirLight.castShadow=true;
 dirLight.shadow.mapSize.set(1024,1024);
@@ -215,27 +215,35 @@ dirLight.shadow.camera.left=-40;dirLight.shadow.camera.right=40;
 dirLight.shadow.camera.top=40;dirLight.shadow.camera.bottom=-40;
 scene.add(dirLight);
 
-const colors=[0xff4444,0x44ff44,0x4444ff,0xff8800];
+// Hospital fluorescent overhead lights
+const flColors=[0xddeeff,0xddeeff,0xddeeff,0xddeeff];
 for(let i=0;i<4;i++){
-  const pl=new THREE.PointLight(colors[i],1,20);
-  pl.position.set((i%2?1:-1)*20,3,((i>>1)?1:-1)*20);
+  const pl=new THREE.PointLight(flColors[i],1.5,25);
+  pl.position.set((i%2?1:-1)*15,4.5,((i>>1)?1:-1)*15);
   scene.add(pl);
+}
+// Additional fluorescent panels
+for(let ix=-1;ix<=1;ix+=2){
+  for(let iz=-1;iz<=1;iz+=2){
+    const flPanel=new THREE.Mesh(new THREE.BoxGeometry(3,0.1,0.6),new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xccddff,emissiveIntensity:2}));
+    flPanel.position.set(ix*15,4.95,iz*15);scene.add(flPanel);
+  }
 }
 
 // --- MAP ---
 const floorGeo=new THREE.PlaneGeometry(ARENA,ARENA);
-const floorMat=new THREE.MeshStandardMaterial({color:0x333344,roughness:0.8});
+const floorMat=new THREE.MeshStandardMaterial({color:0xe0e0e0,roughness:0.3});
 const floor=new THREE.Mesh(floorGeo,floorMat);
 floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;
 scene.add(floor);
 
-const ceil=new THREE.Mesh(new THREE.PlaneGeometry(ARENA,ARENA),new THREE.MeshStandardMaterial({color:0x222233}));
+const ceil=new THREE.Mesh(new THREE.PlaneGeometry(ARENA,ARENA),new THREE.MeshStandardMaterial({color:0xffffff}));
 ceil.rotation.x=Math.PI/2;ceil.position.y=WALLH;scene.add(ceil);
 
 const walls=[];
 function addWall(x,z,w,d,h,color){
   const geo=new THREE.BoxGeometry(w,h||WALLH,d);
-  const mat=new THREE.MeshStandardMaterial({color:color||0x555577,roughness:0.6});
+  const mat=new THREE.MeshStandardMaterial({color:color||0xd0ddd0,roughness:0.5});
   const m=new THREE.Mesh(geo,mat);
   m.position.set(x,(h||WALLH)/2,z);m.castShadow=true;m.receiveShadow=true;
   scene.add(m);walls.push(m);
@@ -246,19 +254,83 @@ const H=ARENA/2;
 addWall(0,-H,ARENA,1);addWall(0,H,ARENA,1);
 addWall(-H,0,1,ARENA);addWall(H,0,1,ARENA);
 
-addWall(-10,-10,6,1,3,0x665555);addWall(-10,-7,1,6,3,0x665555);
-addWall(10,10,6,1,3,0x556655);addWall(10,7,1,6,3,0x556655);
-addWall(0,0,3,3,2.5,0x884422);
-addWall(-20,0,1,10,3,0x555566);addWall(20,0,1,10,3,0x555566);
-addWall(0,-20,10,1,3,0x665555);addWall(0,20,10,1,3,0x556655);
-addWall(-15,15,4,1,2,0x668844);addWall(15,-15,4,1,2,0x668844);
-addWall(-5,-18,1,4,2.5,0x886644);addWall(5,18,1,4,2.5,0x886644);
+// Hospital corridor walls (pale green, white, light blue)
+addWall(-10,-10,6,1,3,0xb8d4b8);addWall(-10,-7,1,6,3,0xb8d4b8);
+addWall(10,10,6,1,3,0xaaccbb);addWall(10,7,1,6,3,0xaaccbb);
+addWall(0,0,3,3,2.5,0xffffff);// Reception desk base
+addWall(-20,0,1,10,3,0xc8d8c8);addWall(20,0,1,10,3,0xc8d8c8);
+addWall(0,-20,10,1,3,0xb8d4b8);addWall(0,20,10,1,3,0xaaccbb);
+addWall(-15,15,4,1,2,0xb0c8d8);addWall(15,-15,4,1,2,0xb0c8d8);
+addWall(-5,-18,1,4,2.5,0xc0d0c0);addWall(5,18,1,4,2.5,0xc0d0c0);
 for(let i=0;i<12;i++){
   const s=1+Math.random()*1.5;
   const x=(Math.random()-.5)*(ARENA-8),z=(Math.random()-.5)*(ARENA-8);
   if(Math.abs(x)<3&&Math.abs(z)<3)continue;
-  addWall(x,z,s,s,s,0x997744);
+  addWall(x,z,s,s,s,0xd0e0d0);
 }
+
+// --- RED CROSSES ON WALLS ---
+function addRedCross(x,y,z,rotY){
+  const g=new THREE.Group();
+  const hBar=new THREE.Mesh(new THREE.BoxGeometry(1.2,0.05,0.3),new THREE.MeshStandardMaterial({color:0xff0000}));
+  const vBar=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.05,1.2),new THREE.MeshStandardMaterial({color:0xff0000}));
+  g.add(hBar);g.add(vBar);
+  g.position.set(x,y,z);g.rotation.y=rotY||0;
+  scene.add(g);
+}
+addRedCross(-29.4,2.5,-15,Math.PI/2);// left wall
+addRedCross(29.4,2.5,15,Math.PI/2);// right wall
+addRedCross(-15,2.5,-29.4,0);// back wall
+addRedCross(15,2.5,29.4,0);// front wall
+
+// --- HOSPITAL BEDS ---
+function addBed(x,z,rotY){
+  const g=new THREE.Group();
+  // mattress
+  const frame=new THREE.Mesh(new THREE.BoxGeometry(1,0.3,2),new THREE.MeshStandardMaterial({color:0xffffff}));
+  frame.position.y=0.55;g.add(frame);
+  // legs
+  const legMat=new THREE.MeshStandardMaterial({color:0xcccccc,metalness:0.5});
+  for(let lx of[-0.4,0.4])for(let lz of[-0.8,0.8]){
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.4,6),legMat);
+    leg.position.set(lx,0.2,lz);g.add(leg);
+  }
+  // headboard
+  const hb=new THREE.Mesh(new THREE.BoxGeometry(1,0.5,0.08),new THREE.MeshStandardMaterial({color:0xeeeeee}));
+  hb.position.set(0,0.9,-0.95);g.add(hb);
+  g.position.set(x,0,z);g.rotation.y=rotY||0;scene.add(g);
+}
+addBed(-8,-20,0);addBed(-5,-20,0);addBed(8,20,0);addBed(5,20,0);
+addBed(-22,-8,Math.PI/2);addBed(22,8,Math.PI/2);
+
+// --- IV STANDS ---
+function addIVStand(x,z){
+  const g=new THREE.Group();
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,1.8,6),new THREE.MeshStandardMaterial({color:0xcccccc,metalness:0.6}));
+  pole.position.y=0.9;g.add(pole);
+  // bag
+  const bag=new THREE.Mesh(new THREE.BoxGeometry(0.15,0.25,0.08),new THREE.MeshStandardMaterial({color:0xaaddff,transparent:true,opacity:0.7}));
+  bag.position.set(0.1,1.6,0);g.add(bag);
+  // base
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.05,8),new THREE.MeshStandardMaterial({color:0xaaaaaa,metalness:0.5}));
+  base.position.y=0.025;g.add(base);
+  g.position.set(x,0,z);scene.add(g);
+}
+addIVStand(-7,-19);addIVStand(-4,-19);addIVStand(9,21);addIVStand(-21,-7);addIVStand(23,9);
+
+// --- RECEPTION DESK ---
+function addReceptionDesk(x,z,rotY){
+  const g=new THREE.Group();
+  const desk=new THREE.Mesh(new THREE.BoxGeometry(3,1,1.2),new THREE.MeshStandardMaterial({color:0xf5f0e0}));
+  desk.position.y=0.5;g.add(desk);
+  const top=new THREE.Mesh(new THREE.BoxGeometry(3.1,0.06,1.3),new THREE.MeshStandardMaterial({color:0xeeddcc}));
+  top.position.y=1.03;g.add(top);
+  // Computer monitor
+  const monitor=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.4,0.05),new THREE.MeshStandardMaterial({color:0x222222}));
+  monitor.position.set(-0.3,1.25,0);g.add(monitor);
+  g.position.set(x,0,z);g.rotation.y=rotY||0;scene.add(g);
+}
+addReceptionDesk(0,-3,0);
 
 const collidables=[...walls];
 
