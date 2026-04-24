@@ -641,10 +641,8 @@ function spawnBill(){
 }
 
 function spawnEnemySkipBill(speedMult){
-  const savedIdx=enemyTypeIndex;
-  // Find next non-Bill type
-  let idx=enemyTypeIndex % ENEMY_TYPES.length;
-  if(idx===4) enemyTypeIndex++;
+  // Skip Bill (index 4) in regular rotation
+  while((enemyTypeIndex % ENEMY_TYPES.length)===4) enemyTypeIndex++;
   spawnEnemy(speedMult);
 }
 
@@ -736,6 +734,7 @@ document.addEventListener('contextmenu',e=>e.preventDefault());
 const blocker=document.getElementById('blocker');
 document.getElementById('play-btn').addEventListener('click',()=>{
   if(!alive||settingsOpen)return;
+  ensureAudio();
   renderer.domElement.requestPointerLock();
 });
 document.addEventListener('pointerlockchange',()=>{
@@ -1662,10 +1661,12 @@ function animate(){
           projectiles.forEach(p=>scene.remove(p.mesh));projectiles=[];
           pickups.forEach(p=>scene.remove(p.mesh));pickups=[];
           playerTracers.forEach(t=>scene.remove(t.mesh));playerTracers=[];
+          kidneyPickups.forEach(k=>{if(!k.collected)scene.remove(k.mesh)});kidneyPickups=[];
           kidneyFixParticles.forEach(p=>scene.remove(p.mesh));kidneyFixParticles=[];
           billRef=null;
           kidneyFixTimer=0;
           kidneysDone=false;
+          kidneysCollected=0;
           // Heal player a bit
           hp=Math.min(MAXHP, hp+30);
           // Give ammo
