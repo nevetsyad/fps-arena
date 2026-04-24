@@ -151,10 +151,22 @@ function updateVolDisplay(){volVal.textContent=volSlider.value+'%'}
 volSlider.value=Math.round(soundVolume*100);updateVolDisplay();
 volSlider.addEventListener('input',()=>{soundVolume=volSlider.value/100;localStorage.setItem('fps-vol',volSlider.value);updateVolDisplay()});
 
-function ensureAudio(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume()}
+function ensureAudio(){
+  if(!audioCtx){
+    try{
+      audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+      console.log('[audio] AudioContext created. State:',audioCtx.state,'sampleRate:',audioCtx.sampleRate);
+    }catch(e){console.error('[audio] Failed to create AudioContext:',e);return}
+  }
+  if(audioCtx.state==='suspended'){
+    console.log('[audio] Resuming suspended AudioContext...');
+    audioCtx.resume().then(()=>console.log('[audio] AudioContext resumed. State:',audioCtx.state)).catch(e=>console.error('[audio] Resume failed:',e));
+  }
+}
 
 function playSound(type){
   ensureAudio();
+  if(!audioCtx){console.warn('[audio] playSound("'+type+'") skipped — no audioCtx');return}
   const ctx=audioCtx;const g=ctx.createGain();g.connect(ctx.destination);const now=ctx.currentTime;
   const vol=soundVolume;
   if(type==='gunshot'){
@@ -739,6 +751,11 @@ const blocker=document.getElementById('blocker');
 document.getElementById('play-btn').addEventListener('click',()=>{
   if(!alive||settingsOpen)return;
   ensureAudio();
+  // Safety net: if no enemies exist (e.g. restart failed to spawn), spawn now
+  if(enemies.length===0&&wave>=1){
+    console.log('[play-btn] No enemies found — spawning wave',wave);
+    spawnWave();
+  }
   renderer.domElement.requestPointerLock();
 });
 document.addEventListener('pointerlockchange',()=>{
@@ -1287,6 +1304,8 @@ function restart(){
   document.getElementById('mission-success').style.display='none';
   document.getElementById('kidney-counter').style.display='none';
   stopConfetti();
+  document.getElementById('reload-bar').style.display='none';
+  document.getElementById('knife-slash').style.opacity=0;
   // Remove mission-failed overlay if present
   const mf=document.getElementById('mission-failed');
   if(mf)mf.remove();
