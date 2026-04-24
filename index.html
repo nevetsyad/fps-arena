@@ -99,7 +99,7 @@ canvas{display:block}
 </div>
 <p style="color:#f66;font-size:15px;line-height:1.6;margin-top:8px;font-style:italic">⚠ Failure = getting katana'd by a man with renal failure ⚠</p>
 </div>
-<h1 style="color:#ffdd00;text-shadow:0 0 20px #f80">FPS ARENA</h1><p style="margin-bottom:8px">WASD to move · Mouse to aim · Click to attack · R to reload · E to toggle weapon (gun/knife) · Right-click for quick melee</p><button id="play-btn">▶ PLAY</button><div style="margin-top:20px;display:flex;gap:12px;justify-content:center"><button id="blocker-settings">Settings</button><button id="blocker-hiscores">High Scores</button></div></div></div>
+<h1 style="color:#ffdd00;text-shadow:0 0 20px #f80">FPS ARENA</h1><p style="margin-bottom:8px">WASD to move · Mouse to aim · Click to shoot · R to reload · E for knife · Right-click for knife</p><button id="play-btn">▶ PLAY</button><div style="margin-top:20px;display:flex;gap:12px;justify-content:center"><button id="blocker-settings">Settings</button><button id="blocker-hiscores">High Scores</button></div></div></div>
 <div id="settings-panel"><h2>Settings</h2><div class="setting-row"><label>Mouse Sensitivity</label><input type="range" id="sens-slider" min="0.5" max="5.0" step="0.1" value="2.0"><span class="val" id="sens-val">2.0</span></div><div class="setting-row"><label>Sound Volume</label><input type="range" id="vol-slider" min="0" max="100" step="5" value="80"><span class="val" id="vol-val">80%</span></div><button id="settings-close">Close</button></div>
 <button id="settings-gear">⚙</button>
 <div id="hud">
@@ -186,6 +186,7 @@ let kidneyPickups=[], kidneysCollected=0, totalKidneys=7, kidneysDone=false, kid
 let billRef=null, kidneyFixParticles=[];
 let yaw=0, pitch=0, velocity=new THREE.Vector3();
 let knifeCooldown=0;const KNIFE_CD=0.5,KNIFE_RANGE=2.5,KNIFE_DMG_MIN=75,KNIFE_DMG_MAX=100;
+let currentWeapon='gun';
 
 // --- THREE SETUP ---
 const scene=new THREE.Scene();
@@ -528,7 +529,7 @@ function spawnProjectile(from,to,dmg,enemyColor){
 
 // --- INPUT ---
 const keys={};
-document.addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyR'&&!reloading&&ammo<30&&reserve>0)startReload();if(e.code==='KeyE')knifeAttack();});
+document.addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyR'&&!reloading&&ammo<30&&reserve>0)startReload();if(e.code==='KeyE')toggleWeapon();});
 document.addEventListener('keyup',e=>keys[e.code]=false);
 
 let mouseSens=parseFloat(localStorage.getItem('fps-sens')||'2.0');
@@ -761,9 +762,6 @@ function knifeAttack(){
     }
   }
   requestAnimationFrame(animateKnife);
-    else{knifeGroup.rotation.set(0,0,0);switchToGun();}
-  };
-  requestAnimationFrame(knSwing);
 
   // Use a separate knife raycaster so gun raycaster is never affected
   const knifeRay=new THREE.Raycaster();
