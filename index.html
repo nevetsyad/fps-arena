@@ -87,17 +87,17 @@ canvas{display:block}
 <body>
 <div id="blocker"><div style="text-align:center">
 <div id="mission-briefing" style="margin-bottom:20px">
-<div style="color:#ffdd00;font-size:36px;text-transform:uppercase;letter-spacing:8px;margin-bottom:4px;text-shadow:0 0 20px #ff0,0 0 40px #f80;font-family:'Courier New',monospace;font-weight:900">⚕ CURING BILL ⚕</div>
-<div style="color:#f88;font-size:16px;letter-spacing:4px;margin-bottom:16px;text-shadow:0 0 10px #f00;font-style:italic">A Medical Thriller</div>
-<p style="color:#ffccaa;font-size:17px;line-height:1.7;margin-bottom:6px">Bill's kidneys have gone FULL ROGUE.</p>
-<p style="color:#ffccaa;font-size:17px;line-height:1.7;margin-bottom:6px">He's got <b style="color:#f44">rabies from kidney disease</b> (don't look it up) and he's wielding a katana like it's his job.</p>
-<p style="color:#ffccaa;font-size:17px;line-height:1.7;margin-bottom:12px">You are NOT here to fight him. You're here to <b style="color:#0f0">SAVE</b> him.</p>
-<div style="text-align:left;max-width:420px;margin:0 auto 10px">
-<p style="color:#ffaaaa;font-size:17px;line-height:1.8;margin-bottom:4px">🔪 <b>Collect</b> the scattered donor kidneys across the arena</p>
-<p style="color:#ffaaaa;font-size:17px;line-height:1.8;margin-bottom:4px">💚 <b>Walk up to Bill</b> once you've got them all</p>
-<p style="color:#ffaaaa;font-size:17px;line-height:1.8;margin-bottom:4px">🏆 <b>Cure him.</b> Save the day. Don't get sliced.</p>
+<div style="color:#ffdd00;font-size:42px;text-transform:uppercase;letter-spacing:10px;margin-bottom:4px;text-shadow:0 0 20px #ff0,0 0 40px #f80,0 0 60px #f44;font-family:'Courier New',monospace;font-weight:900">⚕ CURING BILL ⚕</div>
+<div style="color:#f88;font-size:14px;letter-spacing:6px;margin-bottom:20px;text-shadow:0 0 10px #f00;font-style:italic;text-transform:uppercase">Volume 1: The Renal Failure</div>
+<p style="color:#ffccaa;font-size:17px;line-height:1.7;margin-bottom:6px">Bill's kidneys have <b style="color:#f80">quit the band</b>. Something about "creative differences with his bladder."</p>
+<p style="color:#ffccaa;font-size:17px;line-height:1.7;margin-bottom:6px">Now he's got <b style="color:#f44">rabies from kidney disease</b> — yes, that's a thing now — and he's chasing people with a katana screaming <span style="color:#ffdd00;font-style:italic">"MY BODY MY CHOICE!"</span></p>
+<p style="color:#ffccaa;font-size:17px;line-height:1.7;margin-bottom:14px">You're not here to kill Bill. You're here to <b style="color:#0f0;text-shadow:0 0 8px #0f0">CURE</b> Bill. Big difference. <span style="color:#888">(Legally speaking.)</span></p>
+<div style="text-align:left;max-width:440px;margin:0 auto 12px">
+<p style="color:#ffaaaa;font-size:17px;line-height:1.8;margin-bottom:5px">🔪 <b>Scavenge</b> the 7 donor kidneys scattered across the arena</p>
+<p style="color:#ffaaaa;font-size:17px;line-height:1.8;margin-bottom:5px">💚 <b>Walk up to Bill</b> and deliver the goods like a very uninsured surgeon</p>
+<p style="color:#ffaaaa;font-size:17px;line-height:1.8;margin-bottom:5px">🏆 <b>Cure him.</b> Become the hero modern medicine deserves.</p>
 </div>
-<p style="color:#f66;font-size:15px;line-height:1.6;margin-top:8px;font-style:italic">⚠ Failure = getting katana'd by a man with renal failure ⚠</p>
+<p style="color:#f66;font-size:15px;line-height:1.6;margin-top:8px;font-style:italic">⚠ Failure = getting disemboweled by a man who can't even pee right ⚠</p>
 </div>
 <h1 style="color:#ffdd00;text-shadow:0 0 20px #f80">FPS ARENA</h1><p style="margin-bottom:8px">WASD to move · Mouse to aim · Click to shoot · R to reload · E for knife · Right-click for knife</p><button id="play-btn">▶ PLAY</button><div style="margin-top:20px;display:flex;gap:12px;justify-content:center"><button id="blocker-settings">Settings</button><button id="blocker-hiscores">High Scores</button></div></div></div>
 <div id="settings-panel"><h2>Settings</h2><div class="setting-row"><label>Mouse Sensitivity</label><input type="range" id="sens-slider" min="0.5" max="5.0" step="0.1" value="2.0"><span class="val" id="sens-val">2.0</span></div><div class="setting-row"><label>Sound Volume</label><input type="range" id="vol-slider" min="0" max="100" step="5" value="80"><span class="val" id="vol-val">80%</span></div><button id="settings-close">Close</button></div>
@@ -120,7 +120,7 @@ canvas{display:block}
 <div id="leaderboard"><h2>HIGH SCORES</h2><table><thead><tr><th>Rank</th><th>Name</th><th>Score</th><th>Wave</th></tr></thead><tbody id="lb-body"></tbody></table><div id="lb-buttons"><button id="lb-restart">Play Again</button><button id="lb-menu">Menu</button></div></div>
 <div id="gameover" style="display:none"></div>
 <div id="kidney-counter"></div>
-<div id="mission-success"><h1>🏆 VICTORY — BILL'S CURED! 🏆</h1><p id="success-stats"></p><canvas id="confetti-canvas" style="position:absolute;inset:0;pointer-events:none;z-index:211"></canvas><button id="success-continue" style="position:relative;z-index:212">Continue</button></div>
+<div id="mission-success"><h1>🏆 VICTORY — BILL'S CURED! 🏆</h1><p style="color:#0f0;font-size:18px;margin-top:4px;text-shadow:0 0 10px #0f0">His kidneys would like to personally thank you.</p><p id="success-stats"></p><canvas id="confetti-canvas" style="position:absolute;inset:0;pointer-events:none;z-index:211"></canvas><button id="success-continue" style="position:relative;z-index:212">Continue</button></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
