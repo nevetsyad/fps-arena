@@ -694,9 +694,8 @@ function shoot(){
       hitEnemy.body.material.emissive.set(0xffffff);
       hitEnemy.head.material.emissive.set(0xffffff);
       setTimeout(()=>{hitEnemy.body.material.emissive.set(0);hitEnemy.head.material.emissive.set(0)},80);
-      if(hitEnemy.hp<=0)killEnemy(hitEnemy,headshot);
     }
-    if(hitEnemy.hp<=0&&!hitEnemy.dead)killEnemy(hitEnemy,false);
+    if(hitEnemy.hp<=0&&!hitEnemy.dead)killEnemy(hitEnemy,hitKidney?false:raycaster.intersectObjects([hitEnemy.head]).length>0);
   }
 
   const wallHits=raycaster.intersectObjects(collidables);
@@ -869,7 +868,9 @@ function saveHighScore(name,score,wave){
   scores=scores.slice(0,10);
   localStorage.setItem('fps-arena-highscores',JSON.stringify(scores));
   localStorage.setItem('fps-arena-lastname',name);
-  return scores.findIndex(s=>s.score===score&&s.name===name&&s.date===scores[scores.indexOf(s)].date);
+  let found=-1;
+  for(let i=scores.length-1;i>=0;i--){if(scores[i].score===score&&scores[i].name===name){found=i;break}}
+  return found;
 }
 
 function renderLeaderboard(highlightScore){
@@ -964,10 +965,13 @@ function restart(){
   blocker.style.display='flex';
   updateHUD();
 
-  // Request pointer lock to start playing
+  // Request pointer lock, then spawn wave once lock is granted
+  const onLock=()=>{
+    document.removeEventListener('pointerlockchange',onLock);
+    spawnWave();
+  };
+  document.addEventListener('pointerlockchange',onLock);
   renderer.domElement.requestPointerLock();
-  // Spawn wave immediately so enemies are always present on restart
-  spawnWave();
 }
 
 // --- PLAYER COLLISION ---
@@ -1053,6 +1057,25 @@ function animate(){
       }
     }
     if(knifeCooldown>0)knifeCooldown-=dt;
+
+    // Enemy-enemy separation
+    for(let i=0;i<enemies.length;i++){
+      if(enemies[i].dead)continue;
+      for(let j=i+1;j<enemies.length;j++){
+        if(enemies[j].dead)continue;
+        const a=enemies[i].group.position,b=enemies[j].group.position;
+        const dx=a.x-b.x,dz=a.z-b.z;
+        const dist=Math.sqrt(dx*dx+dz*dz);
+        const minDist=1.2;
+        if(dist<minDist&&dist>0.01){
+          const push=(minDist-dist)*3*dt;
+          const nx=dx/dist,nz=dz/dist;
+          a.x+=nx*push;a.z+=nz*push;
+          b.x-=nx*push;b.z-=nz*push;
+          enemyCollide(a,.5);enemyCollide(b,.5);
+        }
+      }
+    }
 
     // Enemy AI
     for(const e of enemies){
@@ -1194,7 +1217,8 @@ function animate(){
       p.mesh.position.y=.5+Math.sin(p.time*3)*.15;
       const dx=camera.position.x-p.mesh.position.x,dz=camera.position.z-p.mesh.position.z;
       if(dx*dx+dz*dz<4){
-        if(p.type==='health'&&hp<MAXHP){hp=Math.min(MAXHP,hp+25)}
+        if(p.type==='health'&&hp>=MAXHP){/* despawn after 15s idle at full hp */if(p.time>15){scene.remove(p.mesh);pickups.splice(i,1);};continue;}
+        if(p.type==='health'){hp=Math.min(MAXHP,hp+25)}
         else if(p.type==='ammo'){reserve+=30}
         else continue;
         playSound('pickup');
