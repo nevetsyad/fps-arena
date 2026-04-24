@@ -76,10 +76,22 @@ canvas{display:block}
 #lb-buttons button:hover{border-color:#0ff;color:#0ff}
 #blocker-hiscores{margin-top:12px;padding:10px 30px;font-size:16px;font-family:'Courier New',monospace;background:transparent;border:1px solid #888;color:#ccc;cursor:pointer;text-transform:uppercase;letter-spacing:2px}
 #blocker-hiscores:hover{border-color:#0ff;color:#0ff}
+#kidney-counter{position:fixed;top:50px;left:16px;z-index:10;pointer-events:none;color:#f88;font-size:16px;font-family:'Courier New',monospace;text-shadow:0 0 8px #f00;display:none}
+#mission-success{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;flex-direction:column;z-index:210}
+#mission-success h1{color:#0f0;font-size:52px;text-shadow:0 0 30px #0f0}
+#mission-success p{color:#ccc;font-size:22px;margin-top:12px}
+#mission-success button{margin-top:24px;padding:14px 40px;font-size:22px;font-family:'Courier New',monospace;background:#0f0;color:#000;border:none;cursor:pointer;text-transform:uppercase;letter-spacing:3px}
+#mission-success button:hover{background:#0c0}
 </style>
 </head>
 <body>
-<div id="blocker"><div style="text-align:center"><h1>FPS ARENA</h1><p style="margin-bottom:8px">WASD to move · Mouse to aim · Click to shoot · R to reload · E for knife</p><button id="play-btn">▶ PLAY</button><div style="margin-top:20px;display:flex;gap:12px;justify-content:center"><button id="blocker-settings">Settings</button><button id="blocker-hiscores">High Scores</button></div></div></div>
+<div id="blocker"><div style="text-align:center">
+<div id="mission-briefing" style="margin-bottom:20px">
+<div style="color:#f88;font-size:20px;text-transform:uppercase;letter-spacing:3px;margin-bottom:12px;text-shadow:0 0 12px #f00">⚕ MISSION BRIEFING ⚕</div>
+<p style="color:#ffaaaa;font-size:18px;line-height:1.6;margin-bottom:6px">Collect all the scattered kidneys across the arena</p>
+<p style="color:#ffaaaa;font-size:18px;line-height:1.6;margin-bottom:6px">Bring them to Bill to fix his kidneys</p>
+</div>
+<h1>FPS ARENA</h1><p style="margin-bottom:8px">WASD to move · Mouse to aim · Click to shoot · R to reload · E for knife</p><button id="play-btn">▶ PLAY</button><div style="margin-top:20px;display:flex;gap:12px;justify-content:center"><button id="blocker-settings">Settings</button><button id="blocker-hiscores">High Scores</button></div></div></div>
 <div id="settings-panel"><h2>Settings</h2><div class="setting-row"><label>Mouse Sensitivity</label><input type="range" id="sens-slider" min="0.5" max="5.0" step="0.1" value="2.0"><span class="val" id="sens-val">2.0</span></div><div class="setting-row"><label>Sound Volume</label><input type="range" id="vol-slider" min="0" max="100" step="5" value="80"><span class="val" id="vol-val">80%</span></div><button id="settings-close">Close</button></div>
 <button id="settings-gear">⚙</button>
 <div id="hud">
@@ -99,6 +111,8 @@ canvas{display:block}
 <div id="name-entry"><h2>GAME OVER</h2><div class="final-stats" id="name-final-stats"></div><label for="player-name">Enter Your Name</label><input type="text" id="player-name" maxlength="16" placeholder="Anonymous"><button id="name-submit">Submit</button></div>
 <div id="leaderboard"><h2>HIGH SCORES</h2><table><thead><tr><th>Rank</th><th>Name</th><th>Score</th><th>Wave</th></tr></thead><tbody id="lb-body"></tbody></table><div id="lb-buttons"><button id="lb-restart">Play Again</button><button id="lb-menu">Menu</button></div></div>
 <div id="gameover" style="display:none"></div>
+<div id="kidney-counter"></div>
+<div id="mission-success"><h1>✓ Bill's kidneys fixed!</h1><p id="success-stats"></p><button id="success-continue">Continue</button></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -158,6 +172,8 @@ function playSound(type){
 // --- STATE ---
 let hp=MAXHP, ammo=30, reserve=90, score=0, wave=1, alive=true, playing=false;
 let enemies=[], pickups=[], projectiles=[], fireCooldown=0, reloading=false, reloadTimer=0, reloadDuration=1.5;
+let kidneyPickups=[], kidneysCollected=0, totalKidneys=7, kidneysDone=false, kidneyFixTimer=0;
+let billRef=null, kidneyFixParticles=[];
 let yaw=0, pitch=0, velocity=new THREE.Vector3();
 let knifeCooldown=0;const KNIFE_CD=0.5,KNIFE_RANGE=2.5,KNIFE_DMG_MIN=75,KNIFE_DMG_MAX=100;
 
@@ -405,9 +421,53 @@ function spawnEnemy(){
   });
 }
 
+function createKidneyMesh(x,z){
+  // Bean-shaped kidney using a squashed torus knot
+  const geo=new THREE.TorusKnotGeometry(.3,.12,32,8,2,3);
+  const mat=new THREE.MeshStandardMaterial({color:0xcc2244,emissive:0x881122,emissiveIntensity:.5,roughness:.4});
+  const mesh=new THREE.Mesh(geo,mat);
+  mesh.position.set(x,.6,z);
+  mesh.castShadow=true;
+  // Add glow light
+  const light=new THREE.PointLight(0xff2244,.8,5);
+  light.position.set(0,.2,0);
+  mesh.add(light);
+  scene.add(mesh);
+  return mesh;
+}
+
+function spawnKidneys(){
+  kidneyPickups.forEach(k=>scene.remove(k.mesh));
+  kidneyPickups=[];kidneysCollected=0;kidneysDone=false;
+  const margin=8;
+  for(let i=0;i<totalKidneys;i++){
+    let x,z,ok=false,tries=0;
+    while(!ok&&tries<50){
+      x=(Math.random()-.5)*(ARENA-margin*2)+margin/2*(Math.random()<.5?1:-1);
+      z=(Math.random()-.5)*(ARENA-margin*2)+margin/2*(Math.random()<.5?1:-1);
+      ok=true;
+      // Not too close to center spawn or walls
+      for(const w of walls){
+        const box=new THREE.Box3().setFromObject(w);
+        if(x>box.min.x-1&&x<box.max.x+1&&z>box.min.z-1&&z<box.max.z+1){ok=false;break}
+      }
+      tries++;
+    }
+    const mesh=createKidneyMesh(x||((Math.random()-.5)*40),z||((Math.random()-.5)*40));
+    kidneyPickups.push({mesh,collected:false,time:Math.random()*Math.PI*2});
+  }
+  updateKidneyHUD();
+  document.getElementById('kidney-counter').style.display='block';
+}
+
+function updateKidneyHUD(){
+  document.getElementById('kidney-counter').textContent='Kidneys collected: '+kidneysCollected+' / '+totalKidneys;
+}
+
 function spawnWave(){
   const count=3+wave*2;
   for(let i=0;i<count;i++)spawnEnemy();
+  spawnKidneys();
   const wi=document.getElementById('wave-info');
   wi.textContent='WAVE '+wave+' — '+count+' enemies incoming';
   wi.style.opacity=1;
@@ -798,6 +858,7 @@ document.getElementById('player-name').addEventListener('keydown',e=>{if(e.key==
 document.getElementById('lb-restart').addEventListener('click',()=>{document.getElementById('leaderboard').style.display='none';restart()});
 document.getElementById('lb-menu').addEventListener('click',()=>{document.getElementById('leaderboard').style.display='none';blocker.style.display='flex'});
 document.getElementById('blocker-hiscores').addEventListener('click',e=>{e.stopPropagation();showLeaderboard(null)});
+document.getElementById('success-continue').addEventListener('click',()=>{document.getElementById('mission-success').style.display='none';showNameEntry()});
 
 function restart(){
   // Full reset
@@ -813,6 +874,10 @@ function restart(){
   projectiles.forEach(p=>scene.remove(p.mesh));projectiles=[];
   // Remove all player tracers
   playerTracers.forEach(t=>scene.remove(t.mesh));playerTracers=[];
+  // Remove kidney pickups and particles
+  kidneyPickups.forEach(k=>{if(!k.collected)scene.remove(k.mesh)});kidneyPickups=[];
+  kidneyFixParticles.forEach(p=>scene.remove(p.mesh));kidneyFixParticles=[];
+  kidneysCollected=0;kidneysDone=false;kidneyFixTimer=0;billRef=null;
 
   // Reset player position
   camera.position.set(0,PLAYERH,0);
@@ -1060,6 +1125,94 @@ function animate(){
         scene.remove(p.mesh);pickups.splice(i,1);
         updateHUD();
       }
+    }
+
+    // Kidney pickups
+    for(const k of kidneyPickups){
+      if(k.collected)continue;
+      k.time+=dt;
+      k.mesh.rotation.y+=dt*1.5;
+      k.mesh.rotation.x=Math.sin(k.time*2)*0.15;
+      k.mesh.position.y=.6+Math.sin(k.time*2.5)*.2;
+      const dx=camera.position.x-k.mesh.position.x,dz=camera.position.z-k.mesh.position.z;
+      if(dx*dx+dz*dz<3){
+        k.collected=true;
+        kidneysCollected++;
+        playSound('pickup');
+        // Pickup effect: flash green
+        const flash=new THREE.PointLight(0x00ff00,3,8);
+        flash.position.copy(k.mesh.position);
+        scene.add(flash);
+        setTimeout(()=>scene.remove(flash),300);
+        scene.remove(k.mesh);
+        updateKidneyHUD();
+        addKillFeed('Kidney collected! ('+kidneysCollected+'/'+totalKidneys+')');
+      }
+    }
+
+    // Bill reference tracking
+    if(!billRef){
+      billRef=enemies.find(e=>e.type==='Bill'&&!e.dead)||null;
+    }
+
+    // Kidney fix: touch Bill when all kidneys collected
+    if(kidneysCollected>=totalKidneys&&!kidneysDone&&billRef&&!billRef.dead){
+      const bp=billRef.group.position;
+      const dx=camera.position.x-bp.x,dz=camera.position.z-bp.z;
+      if(dx*dx+dz*dz<4){
+        kidneysDone=true;
+        kidneyFixTimer=3.0;
+        addKillFeed('⚠ Bill\'s kidneys are being fixed!');
+        // Green glow on Bill
+        if(billRef.kidneys){
+          for(const k of billRef.kidneys){
+            k.material.color.set(0x00ff00);
+            k.material.emissive.set(0x00ff00);
+            k.material.emissiveIntensity=2;
+          }
+        }
+        billRef.body.material.emissive.set(0x00ff00);
+        billRef.body.material.emissiveIntensity=1;
+        // Spawn particles
+        for(let i=0;i<30;i++){
+          const pgeo=new THREE.SphereGeometry(.06,4,4);
+          const pmat=new THREE.MeshStandardMaterial({color:0x00ff00,emissive:0x00ff00,emissiveIntensity:1});
+          const pmesh=new THREE.Mesh(pgeo,pmat);
+          pmesh.position.copy(bp).add(new THREE.Vector3(0,1,0));
+          const vel=new THREE.Vector3((Math.random()-.5)*3,Math.random()*4,(Math.random()-.5)*3);
+          scene.add(pmesh);
+          kidneyFixParticles.push({mesh:pmesh,vel,age:0});
+        }
+      }
+    }
+
+    // Kidney fix animation timer
+    if(kidneysDone&&kidneyFixTimer>0){
+      kidneyFixTimer-=dt;
+      // Pulse Bill's body
+      if(billRef&&billRef.body){
+        const pulse=Math.sin(now*0.015)*0.5+1;
+        billRef.body.material.emissiveIntensity=pulse;
+      }
+      if(kidneyFixTimer<=0){
+        // Success!
+        alive=false;
+        document.exitPointerLock();
+        document.getElementById('kidney-counter').style.display='none';
+        document.getElementById('success-stats').textContent='Score: '+score+' | Wave: '+wave;
+        document.getElementById('mission-success').style.display='flex';
+      }
+    }
+
+    // Update kidney fix particles
+    for(let i=kidneyFixParticles.length-1;i>=0;i--){
+      const p=kidneyFixParticles[i];
+      p.age+=dt;
+      p.vel.y-=5*dt;
+      p.mesh.position.addScaledVector(p.vel,dt);
+      p.mesh.material.opacity=Math.max(0,1-p.age/2);
+      p.mesh.material.transparent=true;
+      if(p.age>2){scene.remove(p.mesh);kidneyFixParticles.splice(i,1)}
     }
   }
 
