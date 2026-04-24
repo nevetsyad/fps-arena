@@ -123,6 +123,8 @@ canvas{display:block}
 <div id="mission-success"><h1>🏆 VICTORY — BILL'S CURED! 🏆</h1><p id="success-stats"></p><canvas id="confetti-canvas" style="position:absolute;inset:0;pointer-events:none;z-index:211"></canvas><button id="success-continue" style="position:relative;z-index:212">Continue</button></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
 (function(){
 // --- CONFIG ---
@@ -857,33 +859,35 @@ function showNameEntry(){
   setTimeout(()=>input.focus(),100);
 }
 
+// --- FIREBASE INIT ---
+const firebaseConfig={apiKey:"AIzaSyDwejcHAnVc_F_DbxMEb8X0Byho37o-isE",authDomain:"fps-arena-leaderboard.firebaseapp.com",databaseURL:"https://fps-arena-leaderboard-default-rtdb.firebaseio.com",projectId:"fps-arena-leaderboard",storageBucket:"fps-arena-leaderboard.firebasestorage.app",messagingSenderId:"1013730513600",appId:"1:1013730513600:web:8b6b2f8d194bb35a249325"};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.database();
+
 function getHighScores(){
-  try{return JSON.parse(localStorage.getItem('fps-arena-highscores'))||[]}catch(e){return[]}
+  return db.ref('scores').orderByChild('score').limitToLast(10).once('value').then(snap=>{
+    const rows=[];snap.forEach(child=>{rows.unshift(child.val())});return rows;
+  }).catch(()=>[]);
 }
 
-function saveHighScore(name,score,wave){
-  let scores=getHighScores();
-  scores.push({name,score,wave,date:Date.now()});
-  scores.sort((a,b)=>b.score-a.score);
-  scores=scores.slice(0,10);
-  localStorage.setItem('fps-arena-highscores',JSON.stringify(scores));
+function saveHighScore(name,scoreVal,waveVal){
   localStorage.setItem('fps-arena-lastname',name);
-  let found=-1;
-  for(let i=scores.length-1;i>=0;i--){if(scores[i].score===score&&scores[i].name===name){found=i;break}}
-  return found;
+  return db.ref('scores').push({name:name,score:scoreVal,wave:waveVal,date:firebase.database.ServerValue.TIMESTAMP});
 }
 
 function renderLeaderboard(highlightScore){
-  const scores=getHighScores();
   const tbody=document.getElementById('lb-body');
-  tbody.innerHTML='';
-  if(scores.length===0){tbody.innerHTML='<tr><td colspan="4" style="color:#555">No scores yet</td></tr>';return}
-  scores.forEach((s,i)=>{
-    const tr=document.createElement('tr');
-    const isNew=highlightScore!=null&&s.score===highlightScore&&i===scores.findIndex(x=>x.score===highlightScore);
-    if(isNew)tr.className='new-score';
-    tr.innerHTML='<td class="rank-col">'+(i+1)+'</td><td class="name-col">'+escHtml(s.name)+'</td><td class="score-col">'+s.score+'</td><td class="wave-col">'+s.wave+'</td>';
-    tbody.appendChild(tr);
+  tbody.innerHTML='<tr><td colspan="4" style="color:#888">Loading...</td></tr>';
+  getHighScores().then(scores=>{
+    tbody.innerHTML='';
+    if(scores.length===0){tbody.innerHTML='<tr><td colspan="4" style="color:#555">No scores yet</td></tr>';return}
+    scores.forEach((s,i)=>{
+      const tr=document.createElement('tr');
+      const isNew=highlightScore!=null&&s.score===highlightScore&&i===scores.findIndex(x=>x.score===highlightScore);
+      if(isNew)tr.className='new-score';
+      tr.innerHTML='<td class="rank-col">'+(i+1)+'</td><td class="name-col">'+escHtml(s.name)+'</td><td class="score-col">'+s.score+'</td><td class="wave-col">'+s.wave+'</td>';
+      tbody.appendChild(tr);
+    });
   });
 }
 
@@ -892,9 +896,10 @@ function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(
 function submitScore(){
   const input=document.getElementById('player-name');
   const name=input.value.trim()||'Anonymous';
-  saveHighScore(name,score,wave);
-  document.getElementById('name-entry').style.display='none';
-  showLeaderboard(score);
+  saveHighScore(name,score,wave).then(()=>{
+    document.getElementById('name-entry').style.display='none';
+    showLeaderboard(score);
+  });
 }
 
 function showLeaderboard(highlightScore){
@@ -907,6 +912,9 @@ document.getElementById('player-name').addEventListener('keydown',e=>{if(e.key==
 document.getElementById('lb-restart').addEventListener('click',()=>{document.getElementById('leaderboard').style.display='none';restart()});
 document.getElementById('lb-menu').addEventListener('click',()=>{document.getElementById('leaderboard').style.display='none';blocker.style.display='flex'});
 document.getElementById('blocker-hiscores').addEventListener('click',e=>{e.stopPropagation();showLeaderboard(null)});
+
+// Auto-refresh leaderboard from Firebase every 30s when visible
+setInterval(()=>{if(document.getElementById('leaderboard').style.display==='flex')renderLeaderboard(null)},30000);
 // === Confetti System ===
 let confettiParts=[],confettiAnim=null;
 function startConfetti(){
