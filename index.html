@@ -267,6 +267,17 @@ const gunBarrel=new THREE.Mesh(new THREE.BoxGeometry(.05,.05,.3),new THREE.MeshS
 gunBarrel.position.set(.25,-.2,-.7);gunGroup.add(gunBarrel);
 camera.add(gunGroup);
 
+// --- KNIFE MODEL ---
+const knifeGroup=new THREE.Group();
+knifeGroup.visible=false;
+const knifeHandle=new THREE.Mesh(new THREE.BoxGeometry(.04,.04,.18),new THREE.MeshStandardMaterial({color:0x5a3a1a}));
+knifeHandle.position.set(.35,-.2,-.35);knifeGroup.add(knifeHandle);
+const knifeBlade=new THREE.Mesh(new THREE.BoxGeometry(.03,.03,.35),new THREE.MeshStandardMaterial({color:0xcccccc,metalness:0.8,roughness:0.2}));
+knifeBlade.position.set(.35,-.2,-.55);knifeGroup.add(knifeBlade);
+const knifeGuard=new THREE.Mesh(new THREE.BoxGeometry(.06,.06,.02),new THREE.MeshStandardMaterial({color:0x888888}));
+knifeGuard.position.set(.35,-.2,-.42);knifeGroup.add(knifeGuard);
+camera.add(knifeGroup);
+
 // --- NAME LABEL SPRITE ---
 function makeLabel(name,color){
   const canvas=document.createElement('canvas');
@@ -515,7 +526,7 @@ function spawnProjectile(from,to,dmg,enemyColor){
 
 // --- INPUT ---
 const keys={};
-document.addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyR'&&!reloading&&ammo<30&&reserve>0)startReload()});
+document.addEventListener('keydown',e=>{keys[e.code]=true;if(e.code==='KeyR'&&!reloading&&ammo<30&&reserve>0)startReload();if(e.code==='KeyE')knifeAttack();});
 document.addEventListener('keyup',e=>keys[e.code]=false);
 
 let mouseSens=parseFloat(localStorage.getItem('fps-sens')||'2.0');
@@ -697,11 +708,33 @@ function shoot(){
   updateHUD();
 }
 
+function switchToKnife(){
+  if(!alive)return;
+  gunGroup.visible=false;
+  knifeGroup.visible=true;
+  knifeGroup.rotation.set(0,0,0);
+}
+function switchToGun(){
+  gunGroup.visible=true;
+  knifeGroup.visible=false;
+}
+
 function knifeAttack(){
   if(!alive||knifeCooldown>0)return;
+  switchToKnife();
   knifeCooldown=KNIFE_CD;
   playSound('knife');
   showKnifeSlash();
+  // Knife swing animation
+  knifeGroup.rotation.z=0.5;
+  knifeGroup.rotation.x=-0.3;
+  const knSwing=()=>{
+    knifeGroup.rotation.z*=0.7;
+    knifeGroup.rotation.x*=0.7;
+    if(Math.abs(knifeGroup.rotation.z)>0.01)requestAnimationFrame(knSwing);
+    else{knifeGroup.rotation.set(0,0,0);switchToGun();}
+  };
+  requestAnimationFrame(knSwing);
 
   // Use a separate knife raycaster so gun raycaster is never affected
   const knifeRay=new THREE.Raycaster();
