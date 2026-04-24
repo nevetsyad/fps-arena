@@ -1111,6 +1111,7 @@ function restart(){
   kidneyPickups.forEach(k=>{if(!k.collected)scene.remove(k.mesh)});kidneyPickups=[];
   kidneyFixParticles.forEach(p=>scene.remove(p.mesh));kidneyFixParticles=[];
   kidneysCollected=0;kidneysDone=false;kidneyFixTimer=0;billRef=null;
+  if(waveSpawnTimer){clearTimeout(waveSpawnTimer);waveSpawnTimer=null}
 
   // Reset player position
   camera.position.set(0,PLAYERH,0);
@@ -1289,7 +1290,7 @@ function animate(){
       // Melee attack (Bill katana)
       if(isMelee){
         e.meleeCooldown-=dt;
-        if(dist<2.0 && e.meleeCooldown<=0){
+        if(dist<2.0 && e.meleeCooldown<=0 && !kidneysDone){
           damagePlayer(15+wave*2);
           e.meleeCooldown=0.8;
           e.meleeSwing=1.0;
