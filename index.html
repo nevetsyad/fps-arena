@@ -273,12 +273,15 @@ camera.add(gunGroup);
 // --- KNIFE MODEL ---
 const knifeGroup=new THREE.Group();
 knifeGroup.visible=false;
-const knifeHandle=new THREE.Mesh(new THREE.BoxGeometry(.04,.04,.18),new THREE.MeshStandardMaterial({color:0x5a3a1a}));
-knifeHandle.position.set(.35,-.2,-.35);knifeGroup.add(knifeHandle);
-const knifeBlade=new THREE.Mesh(new THREE.BoxGeometry(.03,.03,.35),new THREE.MeshStandardMaterial({color:0xcccccc,metalness:0.8,roughness:0.2}));
-knifeBlade.position.set(.35,-.2,-.55);knifeGroup.add(knifeBlade);
-const knifeGuard=new THREE.Mesh(new THREE.BoxGeometry(.06,.06,.02),new THREE.MeshStandardMaterial({color:0x888888}));
-knifeGuard.position.set(.35,-.2,-.42);knifeGroup.add(knifeGuard);
+const knifeHandle=new THREE.Mesh(new THREE.BoxGeometry(.06,.06,.25),new THREE.MeshStandardMaterial({color:0x5a3a1a}));
+knifeHandle.position.set(.4,-.25,-.4);knifeGroup.add(knifeHandle);
+const knifeBlade=new THREE.Mesh(new THREE.BoxGeometry(.05,.04,.5),new THREE.MeshStandardMaterial({color:0xcccccc,metalness:0.8,roughness:0.2}));
+knifeBlade.position.set(.4,-.25,-.7);knifeGroup.add(knifeBlade);
+const knifeGuard=new THREE.Mesh(new THREE.BoxGeometry(.09,.09,.03),new THREE.MeshStandardMaterial({color:0x888888}));
+knifeGuard.position.set(.4,-.25,-.5);knifeGroup.add(knifeGuard);
+// Knife point (tip)
+const knifeTip=new THREE.Mesh(new THREE.BoxGeometry(.03,.03,.15),new THREE.MeshStandardMaterial({color:0xdddddd,metalness:0.9,roughness:0.1}));
+knifeTip.position.set(.4,-.25,-.95);knifeGroup.add(knifeTip);
 camera.add(knifeGroup);
 
 // --- NAME LABEL SPRITE ---
@@ -742,9 +745,10 @@ function knifeAttack(){
   knifeCooldown=KNIFE_CD;
   playSound('knife');
   showKnifeSlash();
-  // Improved knife swing animation: quick thrust with return
+  // Knife swing animation: quick thrust with return
   const attackTime=300;
   const startTime=performance.now();
+  const basePos=knifeGroup.position.clone();
   
   function animateKnife(){
     const elapsed=performance.now()-startTime;
@@ -753,25 +757,29 @@ function knifeAttack(){
     if(t<0.3){
       // Wind up - pull knife back
       const wt=t/0.3;
-      knifeGroup.rotation.z=wt*0.4;
-      knifeGroup.rotation.x=wt*0.15;
+      knifeGroup.rotation.z=wt*0.5;
+      knifeGroup.rotation.x=wt*0.2;
+      knifeGroup.position.z=basePos.z+wt*0.1;
     }else if(t<0.6){
       // Thrust forward with swing
       const tt=(t-0.3)/0.3;
-      knifeGroup.rotation.z=0.4+tt*1.2; // Swing to ~1.6 rad
-      knifeGroup.rotation.x=0.15-tt*0.4;
+      knifeGroup.rotation.z=0.5+tt*1.2; // Swing forward
+      knifeGroup.rotation.x=0.2-tt*0.5;
+      knifeGroup.position.z=basePos.z+0.1-tt*0.4; // Thrust forward
     }else{
       // Return to neutral
       const rt=(t-0.6)/0.4;
       const ease=1-Math.pow(1-rt,2); // Ease out quadratic
-      knifeGroup.rotation.z=(0.4+1.2)*(1-ease);
-      knifeGroup.rotation.x=(0.15-0.4)*(1-ease);
+      knifeGroup.rotation.z=(0.5+1.2)*(1-ease);
+      knifeGroup.rotation.x=(0.2-0.5)*(1-ease);
+      knifeGroup.position.z=basePos.z+(0.1-0.4)*(1-ease);
     }
     
     if(t<1){
       requestAnimationFrame(animateKnife);
     }else{
       knifeGroup.rotation.set(0,0,0);
+      knifeGroup.position.copy(basePos);
       // Only switch back to gun if we were in gun mode (quick attack)
       if(wasInGunMode){
         switchToGun();
@@ -780,17 +788,21 @@ function knifeAttack(){
   }
   requestAnimationFrame(animateKnife);
 
-  // Use a separate knife raycaster so gun raycaster is never affected
-  const knifeRay=new THREE.Raycaster();
-  knifeRay.far=KNIFE_RANGE;
-  knifeRay.setFromCamera(new THREE.Vector2(0,0),camera);
-
+  // Distance + angle based hit detection for melee
+  const playerPos=camera.position.clone();
+  const lookDir=new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+  const hitAngle=Math.PI*0.4; // ~72 degree cone
+  
   let hitEnemy=null,hitDist=Infinity;
   for(const e of enemies){
     if(e.dead)continue;
-    const meshes=[e.body,e.head];
-    const hits=knifeRay.intersectObjects(meshes);
-    if(hits.length>0&&hits[0].distance<hitDist){hitDist=hits[0].distance;hitEnemy=e}
+    const ep=e.group.position;
+    const toEnemy=new THREE.Vector3(ep.x-playerPos.x,ep.y+1.0-playerPos.y,ep.z-playerPos.z);
+    const dist=toEnemy.length();
+    if(dist>KNIFE_RANGE||dist<0.01)continue;
+    toEnemy.normalize();
+    const angle=Math.acos(Math.max(-1,Math.min(1,lookDir.dot(toEnemy))));
+    if(angle<hitAngle&&dist<hitDist){hitDist=dist;hitEnemy=e}
   }
   if(hitEnemy){
     const dmg=KNIFE_DMG_MIN+Math.floor(Math.random()*(KNIFE_DMG_MAX-KNIFE_DMG_MIN+1));
