@@ -903,6 +903,12 @@ function showNameEntry(){
 }
 
 // --- FIREBASE INIT ---
+// ============================================================
+// REPLACE the values below with your own Firebase project config.
+// 1. Go to https://console.firebase.google.com
+// 2. Create a project → Add a Web App → copy the config object.
+// 3. Enable Realtime Database (start in test mode for dev).
+// ============================================================
 const firebaseConfig={apiKey:"AIzaSyDwejcHAnVc_F_DbxMEb8X0Byho37o-isE",authDomain:"fps-arena-leaderboard.firebaseapp.com",databaseURL:"https://fps-arena-leaderboard-default-rtdb.firebaseio.com",projectId:"fps-arena-leaderboard",storageBucket:"fps-arena-leaderboard.firebasestorage.app",messagingSenderId:"1013730513600",appId:"1:1013730513600:web:8b6b2f8d194bb35a249325"};
 firebase.initializeApp(firebaseConfig);
 const db=firebase.database();
