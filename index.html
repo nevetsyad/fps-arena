@@ -87,11 +87,19 @@ canvas{display:block}
 <body>
 <div id="blocker"><div style="text-align:center">
 <div id="mission-briefing" style="margin-bottom:20px">
-<div style="color:#f88;font-size:20px;text-transform:uppercase;letter-spacing:3px;margin-bottom:12px;text-shadow:0 0 12px #f00">⚕ MISSION BRIEFING ⚕</div>
-<p style="color:#ffaaaa;font-size:18px;line-height:1.6;margin-bottom:6px">Collect all the scattered kidneys across the arena</p>
-<p style="color:#ffaaaa;font-size:18px;line-height:1.6;margin-bottom:6px">Bring them to Bill to fix his kidneys</p>
+<div style="color:#ffdd00;font-size:36px;text-transform:uppercase;letter-spacing:8px;margin-bottom:4px;text-shadow:0 0 20px #ff0,0 0 40px #f80;font-family:'Courier New',monospace;font-weight:900">⚕ CURING BILL ⚕</div>
+<div style="color:#f88;font-size:16px;letter-spacing:4px;margin-bottom:16px;text-shadow:0 0 10px #f00;font-style:italic">A Medical Thriller</div>
+<p style="color:#ffccaa;font-size:17px;line-height:1.7;margin-bottom:6px">Bill's kidneys have gone FULL ROGUE.</p>
+<p style="color:#ffccaa;font-size:17px;line-height:1.7;margin-bottom:6px">He's got <b style="color:#f44">rabies from kidney disease</b> (don't look it up) and he's wielding a katana like it's his job.</p>
+<p style="color:#ffccaa;font-size:17px;line-height:1.7;margin-bottom:12px">You are NOT here to fight him. You're here to <b style="color:#0f0">SAVE</b> him.</p>
+<div style="text-align:left;max-width:420px;margin:0 auto 10px">
+<p style="color:#ffaaaa;font-size:17px;line-height:1.8;margin-bottom:4px">🔪 <b>Collect</b> the scattered donor kidneys across the arena</p>
+<p style="color:#ffaaaa;font-size:17px;line-height:1.8;margin-bottom:4px">💚 <b>Walk up to Bill</b> once you've got them all</p>
+<p style="color:#ffaaaa;font-size:17px;line-height:1.8;margin-bottom:4px">🏆 <b>Cure him.</b> Save the day. Don't get sliced.</p>
 </div>
-<h1>FPS ARENA</h1><p style="margin-bottom:8px">WASD to move · Mouse to aim · Click to shoot · R to reload · E for knife</p><button id="play-btn">▶ PLAY</button><div style="margin-top:20px;display:flex;gap:12px;justify-content:center"><button id="blocker-settings">Settings</button><button id="blocker-hiscores">High Scores</button></div></div></div>
+<p style="color:#f66;font-size:15px;line-height:1.6;margin-top:8px;font-style:italic">⚠ Failure = getting katana'd by a man with renal failure ⚠</p>
+</div>
+<h1 style="color:#ffdd00;text-shadow:0 0 20px #f80">FPS ARENA</h1><p style="margin-bottom:8px">WASD to move · Mouse to aim · Click to shoot · R to reload · E for knife</p><button id="play-btn">▶ PLAY</button><div style="margin-top:20px;display:flex;gap:12px;justify-content:center"><button id="blocker-settings">Settings</button><button id="blocker-hiscores">High Scores</button></div></div></div>
 <div id="settings-panel"><h2>Settings</h2><div class="setting-row"><label>Mouse Sensitivity</label><input type="range" id="sens-slider" min="0.5" max="5.0" step="0.1" value="2.0"><span class="val" id="sens-val">2.0</span></div><div class="setting-row"><label>Sound Volume</label><input type="range" id="vol-slider" min="0" max="100" step="5" value="80"><span class="val" id="vol-val">80%</span></div><button id="settings-close">Close</button></div>
 <button id="settings-gear">⚙</button>
 <div id="hud">
@@ -112,7 +120,7 @@ canvas{display:block}
 <div id="leaderboard"><h2>HIGH SCORES</h2><table><thead><tr><th>Rank</th><th>Name</th><th>Score</th><th>Wave</th></tr></thead><tbody id="lb-body"></tbody></table><div id="lb-buttons"><button id="lb-restart">Play Again</button><button id="lb-menu">Menu</button></div></div>
 <div id="gameover" style="display:none"></div>
 <div id="kidney-counter"></div>
-<div id="mission-success"><h1>✓ Bill's kidneys fixed!</h1><p id="success-stats"></p><button id="success-continue">Continue</button></div>
+<div id="mission-success"><h1>🏆 VICTORY — BILL'S CURED! 🏆</h1><p id="success-stats"></p><canvas id="confetti-canvas" style="position:absolute;inset:0;pointer-events:none;z-index:211"></canvas><button id="success-continue" style="position:relative;z-index:212">Continue</button></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -865,7 +873,35 @@ document.getElementById('player-name').addEventListener('keydown',e=>{if(e.key==
 document.getElementById('lb-restart').addEventListener('click',()=>{document.getElementById('leaderboard').style.display='none';restart()});
 document.getElementById('lb-menu').addEventListener('click',()=>{document.getElementById('leaderboard').style.display='none';blocker.style.display='flex'});
 document.getElementById('blocker-hiscores').addEventListener('click',e=>{e.stopPropagation();showLeaderboard(null)});
-document.getElementById('success-continue').addEventListener('click',()=>{document.getElementById('mission-success').style.display='none';showNameEntry()});
+// === Confetti System ===
+let confettiParts=[],confettiAnim=null;
+function startConfetti(){
+  const c=document.getElementById('confetti-canvas');
+  if(!c)return;
+  c.width=innerWidth;c.height=innerHeight;
+  const ctx=c.getContext('2d');
+  confettiParts=[];
+  const colors=['#ff0','#f0f','#0ff','#f00','#0f0','#ff8800','#ff44aa','#44ffaa','#ffff44','#8844ff'];
+  for(let i=0;i<200;i++){
+    confettiParts.push({x:Math.random()*c.width,y:Math.random()*c.height-c.height,w:Math.random()*10+5,h:Math.random()*6+3,color:colors[Math.floor(Math.random()*colors.length)],vy:Math.random()*3+2,vx:(Math.random()-0.5)*2,rot:Math.random()*360,vr:(Math.random()-0.5)*8});
+  }
+  function draw(){
+    ctx.clearRect(0,0,c.width,c.height);
+    let active=false;
+    for(const p of confettiParts){
+      p.x+=p.vx;p.y+=p.vy;p.rot+=p.vr;
+      if(p.y<c.height+20)active=true;
+      if(p.y>c.height+20)continue;
+      ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot*Math.PI/180);
+      ctx.fillStyle=p.color;ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+      ctx.restore();
+    }
+    if(active)confettiAnim=requestAnimationFrame(draw);
+  }
+  draw();
+}
+function stopConfetti(){if(confettiAnim)cancelAnimationFrame(confettiAnim);confettiAnim=null;const c=document.getElementById('confetti-canvas');if(c)c.getContext('2d').clearRect(0,0,c.width,c.height);}
+document.getElementById('success-continue').addEventListener('click',()=>{stopConfetti();document.getElementById('mission-success').style.display='none';showNameEntry()});
 
 function restart(){
   // Full reset
@@ -1207,7 +1243,7 @@ function animate(){
         document.exitPointerLock();
         document.getElementById('kidney-counter').style.display='none';
         document.getElementById('success-stats').textContent='Score: '+score+' | Wave: '+wave;
-        document.getElementById('mission-success').style.display='flex';
+        document.getElementById('mission-success').style.display='flex';startConfetti();
       }
     }
 
