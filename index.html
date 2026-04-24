@@ -726,16 +726,65 @@ function knifeAttack(){
   knifeCooldown=KNIFE_CD;
   playSound('knife');
   showKnifeSlash();
-  // Knife swing animation
-  knifeGroup.rotation.z=0.5;
-  knifeGroup.rotation.x=-0.3;
-  const knSwing=()=>{
-    knifeGroup.rotation.z*=0.7;
-    knifeGroup.rotation.x*=0.7;
-    if(Math.abs(knifeGroup.rotation.z)>0.01)requestAnimationFrame(knSwing);
-    else{knifeGroup.rotation.set(0,0,0);switchToGun();}
+  
+  // Add camera shake for impact feel
+  const shakeIntensity=0.02;
+  const shakeDuration=150;
+  const origCamX=camera.rotation.x,origCamY=camera.rotation.y;
+  let shakeTime=0;
+  const shake=()=>{
+    shakeTime+=16;
+    if(shakeTime<shakeDuration){
+      const amt=shakeIntensity*(1-shakeTime/shakeDuration);
+      camera.rotation.x=origCamX+(Math.random()-0.5)*amt;
+      camera.rotation.y=origCamY+(Math.random()-0.5)*amt;
+      requestAnimationFrame(shake);
+    }else{
+      camera.rotation.x=origCamX;
+      camera.rotation.y=origCamY;
+    }
   };
-  requestAnimationFrame(knSwing);
+  requestAnimationFrame(shake);
+  
+  // Improved knife swing animation: start, thrust, swing, return
+  const startPos={z:0,x:0,y:0,px:.35,py:-.2,pz:-.35};
+  const attackTime=400;
+  const startTime=performance.now();
+  
+  function animateKnife(){
+    const elapsed=performance.now()-startTime;
+    const t=Math.min(elapsed/attackTime,1);
+    
+    if(t<0.3){
+      // Wind up - pull knife back and ready position
+      const wt=t/0.3;
+      knifeGroup.rotation.z=wt*0.3;
+      knifeGroup.rotation.x=wt*0.2;
+      knifeGroup.position.z=-wt*0.15;
+    }else if(t<0.6){
+      // Thrust forward with swing
+      const tt=(t-0.3)/0.3;
+      knifeGroup.rotation.z=0.3+tt*1.4; // Swing to ~1.7 rad (~97°)
+      knifeGroup.rotation.x=0.2-tt*0.5; // Rotate down during swing
+      knifeGroup.position.z=-0.15+tt*0.4; // Thrust forward
+    }else{
+      // Return to neutral
+      const rt=(t-0.6)/0.4;
+      const ease=1-Math.pow(1-rt,3); // Ease out cubic
+      knifeGroup.rotation.z=(0.3+1.4)*(1-ease);
+      knifeGroup.rotation.x=(0.2-0.5)*(1-ease);
+      knifeGroup.position.z=(-0.15+0.4)*(1-ease);
+    }
+    
+    if(t<1){
+      requestAnimationFrame(animateKnife);
+    }else{
+      knifeGroup.rotation.set(0,0,0);
+      knifeGroup.position.set(0,0,0);
+      switchToGun();
+    }
+  }
+  requestAnimationFrame(animateKnife);
 
   // Use a separate knife raycaster so gun raycaster is never affected
   const knifeRay=new THREE.Raycaster();
@@ -765,16 +814,39 @@ function showKnifeSlash(){
   c.width=innerWidth;c.height=innerHeight;
   const ctx=c.getContext('2d');
   ctx.clearRect(0,0,c.width,c.height);
-  const cx=c.width/2,cy=c.height/2,r=Math.min(c.width,c.height)*0.35;
-  ctx.strokeStyle='rgba(255,255,255,0.8)';ctx.lineWidth=4;ctx.shadowColor='#fff';ctx.shadowBlur=15;
+  const cx=c.width/2,cy=c.height/2,r=Math.min(c.width,c.height)*0.4;
+  
+  // Main slash arc - wider and more visible
+  ctx.strokeStyle='rgba(255,255,255,0.95)';
+  ctx.lineWidth=6;
+  ctx.shadowColor='#fff';
+  ctx.shadowBlur=20;
+  ctx.lineCap='round';
   ctx.beginPath();
-  ctx.arc(cx,cy,r,-Math.PI*0.6,-Math.PI*0.1);
+  ctx.arc(cx,cy,r,-Math.PI*0.7,-Math.PI*0.05);
   ctx.stroke();
+  
+  // Secondary arc for depth
+  ctx.strokeStyle='rgba(200,220,255,0.7)';
+  ctx.lineWidth=3;
+  ctx.shadowBlur=10;
   ctx.beginPath();
-  ctx.arc(cx,cy,r*0.85,-Math.PI*0.55,-Math.PI*0.15);
-  ctx.lineWidth=2;ctx.stroke();
+  ctx.arc(cx,cy,r*0.88,-Math.PI*0.65,-Math.PI*0.1);
+  ctx.stroke();
+  
+  // Motion blur lines
+  ctx.strokeStyle='rgba(255,255,255,0.5)';
+  ctx.lineWidth=2;
+  ctx.shadowBlur=5;
+  for(let i=0;i<5;i++){
+    const offset=i*0.02;
+    ctx.beginPath();
+    ctx.arc(cx,cy,r*(0.95-i*0.04),-Math.PI*0.7-offset,-Math.PI*0.05-offset);
+    ctx.stroke();
+  }
+  
   c.style.opacity=1;
-  setTimeout(()=>{c.style.opacity=0;ctx.clearRect(0,0,c.width,c.height)},150);
+  setTimeout(()=>{c.style.opacity=0;ctx.clearRect(0,0,c.width,c.height)},200);
 }
 
 function startReload(){reloading=true;reloadTimer=reloadDuration=1.5;playSound('reload');document.getElementById('reload-bar').style.display='block'}
