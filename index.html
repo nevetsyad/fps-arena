@@ -573,7 +573,10 @@ document.addEventListener('mousedown',e=>{
   if(document.pointerLockElement!==renderer.domElement){
     renderer.domElement.requestPointerLock();return;
   }
-  if(e.button===0)shoot();
+  if(e.button===0){
+    if(currentWeapon==='knife')knifeAttack();
+    else shoot();
+  }
   if(e.button===2)knifeAttack();
 });
 document.addEventListener('contextmenu',e=>e.preventDefault());
@@ -712,18 +715,29 @@ function shoot(){
 
 function switchToKnife(){
   if(!alive)return;
+  currentWeapon='knife';
   gunGroup.visible=false;
   knifeGroup.visible=true;
   knifeGroup.position.set(0,0,0);
   knifeGroup.rotation.set(0,0,0);
+  updateHUD();
 }
 function switchToGun(){
+  currentWeapon='gun';
   gunGroup.visible=true;
   knifeGroup.visible=false;
+  updateHUD();
+}
+
+function toggleWeapon(){
+  if(!alive)return;
+  if(currentWeapon==='gun')switchToKnife();
+  else switchToGun();
 }
 
 function knifeAttack(){
   if(!alive||knifeCooldown>0)return;
+  const wasInGunMode = currentWeapon === 'gun';
   switchToKnife();
   knifeCooldown=KNIFE_CD;
   playSound('knife');
@@ -758,7 +772,10 @@ function knifeAttack(){
       requestAnimationFrame(animateKnife);
     }else{
       knifeGroup.rotation.set(0,0,0);
-      switchToGun();
+      // Only switch back to gun if we were in gun mode (quick attack)
+      if(wasInGunMode){
+        switchToGun();
+      }
     }
   }
   requestAnimationFrame(animateKnife);
@@ -976,6 +993,7 @@ function restart(){
   hp=MAXHP;ammo=30;reserve=90;score=0;wave=1;alive=true;playing=false;
   enemyTypeIndex=0;fireCooldown=0;reloading=false;reloadTimer=0;
   yaw=0;pitch=0;velocity.set(0,0,0);
+  currentWeapon='gun';
 
   // Remove all enemies
   enemies.forEach(e=>scene.remove(e.group));enemies=[];
@@ -993,6 +1011,12 @@ function restart(){
   // Reset player position
   camera.position.set(0,PLAYERH,0);
   camera.rotation.set(0,0,0);
+
+  // Reset weapon visibility
+  gunGroup.visible=true;
+  knifeGroup.visible=false;
+  knifeGroup.rotation.set(0,0,0);
+  knifeGroup.position.set(0,0,0);
 
   // Hide game over, show blocker
   document.getElementById('gameover').style.display='none';
@@ -1028,7 +1052,11 @@ function updateHUD(){
   document.getElementById('hpVal').textContent=Math.max(0,hp|0);
   document.getElementById('scoreVal').textContent=score;
   document.getElementById('waveVal').textContent=wave;
-  document.getElementById('ammoVal').textContent=(reloading?'RELOADING':ammo)+' / '+reserve;
+  if(currentWeapon==='gun'){
+    document.getElementById('ammoVal').textContent=(reloading?'RELOADING':ammo)+' / '+reserve;
+  }else{
+    document.getElementById('ammoVal').textContent='KNIFE';
+  }
   const aliveCount=enemies.filter(e=>!e.dead).length;
   document.getElementById('enemy-counter').textContent='Enemies: '+aliveCount;
 }
