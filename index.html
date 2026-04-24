@@ -737,7 +737,14 @@ function showKnifeSlash(){
 
 function startReload(){reloading=true;reloadTimer=reloadDuration=1.5;playSound('reload');document.getElementById('reload-bar').style.display='block'}
 
+let waveSpawnTimer=null;
+function scheduleWaveSpawn(delay){
+  if(waveSpawnTimer)clearTimeout(waveSpawnTimer);
+  waveSpawnTimer=setTimeout(()=>{waveSpawnTimer=null;spawnWave()},delay);
+}
+
 function killEnemy(e,headshot,knife){
+  if(e.dead)return;
   e.dead=true;e.deathTimer=1.2;
   playSound('enemyDeath');
   const pts=knife?200:headshot?150:100;
@@ -760,7 +767,7 @@ function killEnemy(e,headshot,knife){
       spawnPickup((Math.random()-.5)*(ARENA-6),(Math.random()-.5)*(ARENA-6),
         Math.random()<.5?'health':'ammo');
     }
-    setTimeout(()=>spawnWave(),2000);
+    scheduleWaveSpawn(2000);
   }
 }
 
@@ -890,8 +897,8 @@ function restart(){
 
   // Request pointer lock to start playing
   renderer.domElement.requestPointerLock();
-  // Spawn wave after a brief moment
-  setTimeout(()=>spawnWave(),500);
+  // Spawn wave immediately so enemies are always present on restart
+  spawnWave();
 }
 
 // --- PLAYER COLLISION ---
