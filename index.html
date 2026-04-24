@@ -616,6 +616,7 @@ function updateKidneyHUD(){
 
 const MAX_WAVES=3;
 function spawnWave(){
+  console.log('[spawnWave] called. wave:', wave, 'MAX_WAVES:', MAX_WAVES, 'enemyTypeIndex:', enemyTypeIndex);
   // Difficulty scaling per wave
   const baseCount=3+wave*2;
   const extraEnemies=wave===1?0:wave===2?2:4;
@@ -633,11 +634,13 @@ function spawnWave(){
 }
 
 function spawnBill(){
+  console.log('[spawnBill] called. enemyTypeIndex before:', enemyTypeIndex);
   // Force-spawn Bill as the last enemy type
   const savedIdx=enemyTypeIndex;
   enemyTypeIndex=4; // Bill is index 4
   spawnEnemy(wave===1?1:wave===2?1.15:1.3);
   enemyTypeIndex=savedIdx;
+  console.log('[spawnBill] Bill spawned. enemies.length:', enemies.length, 'last enemy type:', enemies[enemies.length-1]?.type);
 }
 
 function spawnEnemySkipBill(speedMult){
@@ -1144,34 +1147,12 @@ function missionFailed(){
 }
 
 function restartGame(){
-  // Clean up enemies and objects
-  enemies.forEach(e=>{if(e.group)scene.remove(e.group);});
-  enemies.length=0;
-  projectiles.forEach(p=>{if(p.mesh)scene.remove(p.mesh);});
-  projectiles.length=0;
-  pickups.forEach(p=>{if(p.mesh)scene.remove(p.mesh);});
-  pickups.length=0;
-  kidneyPickups.forEach(k=>{if(!k.collected&&k.mesh)scene.remove(k.mesh);});
-  kidneyPickups=[];
-  kidneyFixParticles.forEach(p=>{if(p.mesh)scene.remove(p.mesh);});
-  kidneyFixParticles=[];
-
-  // Reset state
-  hp=100;score=0;wave=1;kills=0;alive=true;
-  kidneysCollected=0;kidneysDone=false;kidneyFixTimer=0;billRef=null;
-  ammo={pistol:12,shotgun:8,smg:30,sniper:5,knife:Infinity};
-  updateHUD();
-
-  // Hide overlays
-  const ne=document.getElementById('name-entry');if(ne)ne.style.display='none';
-  const ws=document.getElementById('win-screen');if(ws)ws.style.display='none';
-
-  // Respawn player
-  camera.position.set(0,1.7,0);
-  camera.rotation.set(0,0,0);
-
-  // Start new wave
-  scheduleWaveSpawn(1000);
+  console.log('[restartGame] called — delegating to restart()');
+  // Remove the mission-failed overlay if present
+  const mf=document.getElementById('mission-failed');
+  if(mf)mf.remove();
+  // Delegate to the proper restart function
+  restart();
 }
 
 function showNameEntry(){
@@ -1278,6 +1259,7 @@ document.getElementById('success-continue').addEventListener('click',()=>{stopCo
 const origShowSuccess=startConfetti;
 
 function restart(){
+  console.log('[restart] Full reset starting...');
   // Full reset
   hp=MAXHP;ammo=30;reserve=90;score=0;wave=1;alive=true;playing=false;
   enemyTypeIndex=0;fireCooldown=0;reloading=false;reloadTimer=0;
@@ -1298,6 +1280,16 @@ function restart(){
   kidneysCollected=0;kidneysDone=false;kidneyFixTimer=0;billRef=null;
   if(waveSpawnTimer){clearTimeout(waveSpawnTimer);waveSpawnTimer=null}
 
+  // Hide ALL overlays explicitly to prevent stuck UI
+  document.getElementById('name-entry').style.display='none';
+  document.getElementById('leaderboard').style.display='none';
+  document.getElementById('mission-success').style.display='none';
+  document.getElementById('kidney-counter').style.display='none';
+  stopConfetti();
+  // Remove mission-failed overlay if present
+  const mf=document.getElementById('mission-failed');
+  if(mf)mf.remove();
+
   // Reset player position
   camera.position.set(0,PLAYERH,0);
   camera.rotation.set(0,0,0);
@@ -1313,9 +1305,15 @@ function restart(){
   blocker.style.display='flex';
   updateHUD();
 
+  console.log('[restart] Spawning wave 1...');
   // Spawn wave immediately; player clicks blocker to start playing
   // The pointerlockchange listener will set playing=true when they click
-  spawnWave();
+  try{
+    spawnWave();
+    console.log('[restart] Wave spawned. Enemies:', enemies.length, 'Kidneys:', kidneyPickups.length);
+  }catch(e){
+    console.error('[restart] spawnWave error:', e);
+  }
 }
 
 // --- PLAYER COLLISION ---
@@ -1598,8 +1596,8 @@ function animate(){
       }
     }
 
-    // Bill reference tracking
-    if(!billRef){
+    // Bill reference tracking — always update if billRef is null or dead
+    if(!billRef || billRef.dead){
       billRef=enemies.find(e=>e.type==='Bill'&&!e.dead)||null;
     }
 
@@ -1610,6 +1608,7 @@ function animate(){
       if(dx*dx+dz*dz<4){
         kidneysDone=true;
         kidneyFixTimer=3.0;
+        console.log('[cure] Kidney fix started! Timer:', kidneyFixTimer, 'Wave:', wave);
         addKillFeed('⚠ Bill\'s kidneys are being fixed!');
         // Green glow on Bill
         if(billRef.kidneys){
@@ -1643,6 +1642,7 @@ function animate(){
         billRef.body.material.emissiveIntensity=pulse;
       }
       if(kidneyFixTimer<=0){
+        console.log('[cure] Timer expired! wave:', wave, 'billRef alive:', !!(billRef && !billRef.dead), 'enemies:', enemies.length);
         // Wave complete!
         if(wave>=MAX_WAVES){
           // Final victory!
@@ -1675,9 +1675,16 @@ function animate(){
           score+=500;
           wave++;
           updateHUD();
+          console.log('[cure] Scheduling spawnWave for wave', wave, 'in 3 seconds...');
           setTimeout(()=>{
+            console.log('[cure] setTimeout fired! About to spawn wave', wave);
             wi.style.opacity=0;
-            try{spawnWave();console.log('Wave '+wave+' spawned, enemies:',enemies.length)}catch(e){console.error('spawnWave error:',e)}
+            try{
+              spawnWave();
+              console.log('[cure] Wave',wave,'spawned successfully. Enemies:',enemies.length,'Kidneys:',kidneyPickups.length,'billRef:',billRef?'set':'null');
+            }catch(e){
+              console.error('[cure] spawnWave ERROR:',e);
+            }
           }, 3000);
         }
       }
