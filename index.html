@@ -99,7 +99,7 @@ canvas{display:block}
 </div>
 <p style="color:#f66;font-size:15px;line-height:1.6;margin-top:8px;font-style:italic">⚠ Failure = getting katana'd by a man with renal failure ⚠</p>
 </div>
-<h1 style="color:#ffdd00;text-shadow:0 0 20px #f80">FPS ARENA</h1><p style="margin-bottom:8px">WASD to move · Mouse to aim · Click to shoot · R to reload · E for knife</p><button id="play-btn">▶ PLAY</button><div style="margin-top:20px;display:flex;gap:12px;justify-content:center"><button id="blocker-settings">Settings</button><button id="blocker-hiscores">High Scores</button></div></div></div>
+<h1 style="color:#ffdd00;text-shadow:0 0 20px #f80">FPS ARENA</h1><p style="margin-bottom:8px">WASD to move · Mouse to aim · Click to attack · R to reload · E to toggle weapon (gun/knife) · Right-click for quick melee</p><button id="play-btn">▶ PLAY</button><div style="margin-top:20px;display:flex;gap:12px;justify-content:center"><button id="blocker-settings">Settings</button><button id="blocker-hiscores">High Scores</button></div></div></div>
 <div id="settings-panel"><h2>Settings</h2><div class="setting-row"><label>Mouse Sensitivity</label><input type="range" id="sens-slider" min="0.5" max="5.0" step="0.1" value="2.0"><span class="val" id="sens-val">2.0</span></div><div class="setting-row"><label>Sound Volume</label><input type="range" id="vol-slider" min="0" max="100" step="5" value="80"><span class="val" id="vol-val">80%</span></div><button id="settings-close">Close</button></div>
 <button id="settings-gear">⚙</button>
 <div id="hud">
@@ -713,8 +713,8 @@ function switchToKnife(){
   if(!alive)return;
   gunGroup.visible=false;
   knifeGroup.visible=true;
-  knifeGroup.rotation.set(0,0,0);
   knifeGroup.position.set(0,0,0);
+  knifeGroup.rotation.set(0,0,0);
 }
 function switchToGun(){
   gunGroup.visible=true;
@@ -727,29 +727,8 @@ function knifeAttack(){
   knifeCooldown=KNIFE_CD;
   playSound('knife');
   showKnifeSlash();
-  
-  // Add camera shake for impact feel
-  const shakeIntensity=0.02;
-  const shakeDuration=150;
-  const origCamX=camera.rotation.x,origCamY=camera.rotation.y;
-  let shakeTime=0;
-  const shake=()=>{
-    shakeTime+=16;
-    if(shakeTime<shakeDuration){
-      const amt=shakeIntensity*(1-shakeTime/shakeDuration);
-      camera.rotation.x=origCamX+(Math.random()-0.5)*amt;
-      camera.rotation.y=origCamY+(Math.random()-0.5)*amt;
-      requestAnimationFrame(shake);
-    }else{
-      camera.rotation.x=origCamX;
-      camera.rotation.y=origCamY;
-    }
-  };
-  requestAnimationFrame(shake);
-  
-  // Improved knife swing animation: start, thrust, swing, return
-  const startPos={z:0,x:0,y:0,px:.35,py:-.2,pz:-.35};
-  const attackTime=400;
+  // Improved knife swing animation: quick thrust with return
+  const attackTime=300;
   const startTime=performance.now();
   
   function animateKnife(){
@@ -757,35 +736,34 @@ function knifeAttack(){
     const t=Math.min(elapsed/attackTime,1);
     
     if(t<0.3){
-      // Wind up - pull knife back and ready position
+      // Wind up - pull knife back
       const wt=t/0.3;
-      knifeGroup.rotation.z=wt*0.3;
-      knifeGroup.rotation.x=wt*0.2;
-      knifeGroup.position.z=-wt*0.15;
+      knifeGroup.rotation.z=wt*0.4;
+      knifeGroup.rotation.x=wt*0.15;
     }else if(t<0.6){
       // Thrust forward with swing
       const tt=(t-0.3)/0.3;
-      knifeGroup.rotation.z=0.3+tt*1.4; // Swing to ~1.7 rad (~97°)
-      knifeGroup.rotation.x=0.2-tt*0.5; // Rotate down during swing
-      knifeGroup.position.z=-0.15+tt*0.4; // Thrust forward
+      knifeGroup.rotation.z=0.4+tt*1.2; // Swing to ~1.6 rad
+      knifeGroup.rotation.x=0.15-tt*0.4;
     }else{
       // Return to neutral
       const rt=(t-0.6)/0.4;
-      const ease=1-Math.pow(1-rt,3); // Ease out cubic
-      knifeGroup.rotation.z=(0.3+1.4)*(1-ease);
-      knifeGroup.rotation.x=(0.2-0.5)*(1-ease);
-      knifeGroup.position.z=(-0.15+0.4)*(1-ease);
+      const ease=1-Math.pow(1-rt,2); // Ease out quadratic
+      knifeGroup.rotation.z=(0.4+1.2)*(1-ease);
+      knifeGroup.rotation.x=(0.15-0.4)*(1-ease);
     }
     
     if(t<1){
       requestAnimationFrame(animateKnife);
     }else{
       knifeGroup.rotation.set(0,0,0);
-      knifeGroup.position.set(0,0,0);
       switchToGun();
     }
   }
   requestAnimationFrame(animateKnife);
+    else{knifeGroup.rotation.set(0,0,0);switchToGun();}
+  };
+  requestAnimationFrame(knSwing);
 
   // Use a separate knife raycaster so gun raycaster is never affected
   const knifeRay=new THREE.Raycaster();
@@ -815,39 +793,16 @@ function showKnifeSlash(){
   c.width=innerWidth;c.height=innerHeight;
   const ctx=c.getContext('2d');
   ctx.clearRect(0,0,c.width,c.height);
-  const cx=c.width/2,cy=c.height/2,r=Math.min(c.width,c.height)*0.4;
-  
-  // Main slash arc - wider and more visible
-  ctx.strokeStyle='rgba(255,255,255,0.95)';
-  ctx.lineWidth=6;
-  ctx.shadowColor='#fff';
-  ctx.shadowBlur=20;
-  ctx.lineCap='round';
+  const cx=c.width/2,cy=c.height/2,r=Math.min(c.width,c.height)*0.35;
+  ctx.strokeStyle='rgba(255,255,255,0.8)';ctx.lineWidth=4;ctx.shadowColor='#fff';ctx.shadowBlur=15;
   ctx.beginPath();
-  ctx.arc(cx,cy,r,-Math.PI*0.7,-Math.PI*0.05);
+  ctx.arc(cx,cy,r,-Math.PI*0.6,-Math.PI*0.1);
   ctx.stroke();
-  
-  // Secondary arc for depth
-  ctx.strokeStyle='rgba(200,220,255,0.7)';
-  ctx.lineWidth=3;
-  ctx.shadowBlur=10;
   ctx.beginPath();
-  ctx.arc(cx,cy,r*0.88,-Math.PI*0.65,-Math.PI*0.1);
-  ctx.stroke();
-  
-  // Motion blur lines
-  ctx.strokeStyle='rgba(255,255,255,0.5)';
-  ctx.lineWidth=2;
-  ctx.shadowBlur=5;
-  for(let i=0;i<5;i++){
-    const offset=i*0.02;
-    ctx.beginPath();
-    ctx.arc(cx,cy,r*(0.95-i*0.04),-Math.PI*0.7-offset,-Math.PI*0.05-offset);
-    ctx.stroke();
-  }
-  
+  ctx.arc(cx,cy,r*0.85,-Math.PI*0.55,-Math.PI*0.15);
+  ctx.lineWidth=2;ctx.stroke();
   c.style.opacity=1;
-  setTimeout(()=>{c.style.opacity=0;ctx.clearRect(0,0,c.width,c.height)},200);
+  setTimeout(()=>{c.style.opacity=0;ctx.clearRect(0,0,c.width,c.height)},150);
 }
 
 function startReload(){reloading=true;reloadTimer=reloadDuration=1.5;playSound('reload');document.getElementById('reload-bar').style.display='block'}
