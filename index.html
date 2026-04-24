@@ -740,6 +740,7 @@ document.getElementById('play-btn').addEventListener('click',()=>{
 document.addEventListener('pointerlockchange',()=>{
   playing=document.pointerLockElement===renderer.domElement;
   blocker.style.display=playing?'none':'flex';
+  if(playing)ensureAudio();
 });
 
 
@@ -1676,7 +1677,7 @@ function animate(){
           updateHUD();
           setTimeout(()=>{
             wi.style.opacity=0;
-            spawnWave();
+            try{spawnWave();console.log('Wave '+wave+' spawned, enemies:',enemies.length)}catch(e){console.error('spawnWave error:',e)}
           }, 3000);
         }
       }
