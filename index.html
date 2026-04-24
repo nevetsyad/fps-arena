@@ -1305,22 +1305,9 @@ function restart(){
   blocker.style.display='flex';
   updateHUD();
 
-  // Request pointer lock, then spawn wave once lock is granted
-  // Also use a fallback timer in case pointer lock is denied
-  let waveSpawned=false;
-  const doSpawnWave=()=>{
-    if(waveSpawned)return;
-    waveSpawned=true;
-    document.removeEventListener('pointerlockchange',onLock);
-    spawnWave();
-  };
-  const onLock=()=>{
-    if(document.pointerLockElement===renderer.domElement)doSpawnWave();
-  };
-  document.addEventListener('pointerlockchange',onLock);
-  renderer.domElement.requestPointerLock();
-  // Fallback: spawn wave after 1s even if pointer lock fails
-  setTimeout(doSpawnWave,1000);
+  // Spawn wave immediately; player clicks blocker to start playing
+  // The pointerlockchange listener will set playing=true when they click
+  spawnWave();
 }
 
 // --- PLAYER COLLISION ---
