@@ -21,7 +21,7 @@ canvas{display:block}
 #crosshair .h{width:20px;height:2px;top:-1px;left:4px}
 #crosshair .v{width:2px;height:20px;top:4px;left:-1px}
 #damage{position:fixed;inset:0;pointer-events:none;z-index:9;opacity:0;background:radial-gradient(ellipse at center,transparent 50%,rgba(255,0,0,.6));transition:opacity .1s}
-#muzzle{position:fixed;bottom:60px;right:80px;width:40px;height:40px;border-radius:50%;background:radial-gradient(#ff0,#f80,transparent);opacity:0;pointer-events:none;z-index:10}
+#muzzle{position:fixed;bottom:60px;right:80px;width:40px;height:40px;border-radius:50%;background:radial-gradient(#f00,#f44,transparent);opacity:0;pointer-events:none;z-index:10;box-shadow:0 0 20px #f00}
 #killfeed{position:fixed;top:16px;right:16px;z-index:10;pointer-events:none}
 .kill{color:#f44;font-size:14px;margin-bottom:4px;opacity:1;transition:opacity .5s}
 #gameover{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;flex-direction:column;z-index:200;cursor:pointer}
@@ -99,7 +99,7 @@ canvas{display:block}
 </div>
 <p style="color:#f66;font-size:15px;line-height:1.6;margin-top:8px;font-style:italic">⚠ Failure = getting disemboweled by a man who can't even pee right ⚠</p>
 </div>
-<h1 style="color:#ffdd00;text-shadow:0 0 20px #f80">ST. MARY'S MEMORIAL</h1><p style="margin-bottom:8px">WASD to move · Mouse to aim · Click to shoot · R to reload · E for knife · Right-click for knife</p><button id="play-btn">▶ PLAY</button><div style="margin-top:20px;display:flex;gap:12px;justify-content:center"><button id="blocker-settings">Settings</button><button id="blocker-hiscores">High Scores</button></div></div></div>
+<h1 style="color:#ffdd00;text-shadow:0 0 20px #f80">ST. MARY'S MEMORIAL</h1><p style="margin-bottom:8px">WASD to move · Mouse to aim · Click to fire laser · R to reload · E for scalpel · Right-click for scalpel</p><button id="play-btn">▶ PLAY</button><div style="margin-top:20px;display:flex;gap:12px;justify-content:center"><button id="blocker-settings">Settings</button><button id="blocker-hiscores">High Scores</button></div></div></div>
 <div id="settings-panel"><h2>Settings</h2><div class="setting-row"><label>Mouse Sensitivity</label><input type="range" id="sens-slider" min="0.5" max="5.0" step="0.1" value="2.0"><span class="val" id="sens-val">2.0</span></div><div class="setting-row"><label>Sound Volume</label><input type="range" id="vol-slider" min="0" max="100" step="5" value="80"><span class="val" id="vol-val">80%</span></div><button id="settings-close">Close</button></div>
 <button id="settings-gear">⚙</button>
 <div id="hud">
@@ -357,24 +357,38 @@ const collidables=[...walls];
 
 // --- GUN MODEL ---
 const gunGroup=new THREE.Group();
-const gunBody=new THREE.Mesh(new THREE.BoxGeometry(.08,.08,.5),new THREE.MeshStandardMaterial({color:0x222222}));
+// Surgical laser body - sleek silver/white handheld device
+const gunBody=new THREE.Mesh(new THREE.BoxGeometry(.07,.10,.45),new THREE.MeshStandardMaterial({color:0xcccccc,metalness:0.7,roughness:0.3}));
 gunBody.position.set(.25,-.2,-.4);gunGroup.add(gunBody);
-const gunBarrel=new THREE.Mesh(new THREE.BoxGeometry(.05,.05,.3),new THREE.MeshStandardMaterial({color:0x333333}));
-gunBarrel.position.set(.25,-.2,-.7);gunGroup.add(gunBarrel);
+// Laser nozzle/emitter - narrower barrel with red lens
+const gunBarrel=new THREE.Mesh(new THREE.CylinderGeometry(.02,.025,.35,8),new THREE.MeshStandardMaterial({color:0xeeeeee,metalness:0.9,roughness:0.1}));
+gunBarrel.rotation.x=Math.PI/2;gunBarrel.position.set(.25,-.2,-.7);gunGroup.add(gunBarrel);
+// Red lens at tip
+const laserLens=new THREE.Mesh(new THREE.CircleGeometry(.025,16),new THREE.MeshStandardMaterial({color:0xff0000,emissive:0xff0000,emissiveIntensity:2,metalness:0.5,roughness:0.0}));
+laserLens.position.set(.25,-.2,-.875);gunGroup.add(laserLens);
+// Grip ridges
+const grip=new THREE.Mesh(new THREE.BoxGeometry(.05,.12,.06),new THREE.MeshStandardMaterial({color:0x999999,metalness:0.4,roughness:0.6}));
+grip.position.set(.25,-.28,-.32);gunGroup.add(grip);
 camera.add(gunGroup);
 
 // --- KNIFE MODEL ---
 const knifeGroup=new THREE.Group();
 knifeGroup.visible=false;
-const knifeHandle=new THREE.Mesh(new THREE.BoxGeometry(.06,.06,.25),new THREE.MeshStandardMaterial({color:0x5a3a1a}));
+// Scalpel handle - slim metallic handle
+const knifeHandle=new THREE.Mesh(new THREE.BoxGeometry(.03,.04,.28),new THREE.MeshStandardMaterial({color:0xaaaaaa,metalness:0.6,roughness:0.3}));
 knifeHandle.position.set(.4,-.25,-.4);knifeGroup.add(knifeHandle);
-const knifeBlade=new THREE.Mesh(new THREE.BoxGeometry(.05,.04,.5),new THREE.MeshStandardMaterial({color:0xcccccc,metalness:0.8,roughness:0.2}));
-knifeBlade.position.set(.4,-.25,-.7);knifeGroup.add(knifeBlade);
-const knifeGuard=new THREE.Mesh(new THREE.BoxGeometry(.09,.09,.03),new THREE.MeshStandardMaterial({color:0x888888}));
-knifeGuard.position.set(.4,-.25,-.5);knifeGroup.add(knifeGuard);
-// Knife point (tip)
-const knifeTip=new THREE.Mesh(new THREE.BoxGeometry(.03,.03,.15),new THREE.MeshStandardMaterial({color:0xdddddd,metalness:0.9,roughness:0.1}));
-knifeTip.position.set(.4,-.25,-.95);knifeGroup.add(knifeTip);
+// Scalpel blade - thin, precise, tapered
+const scalpelBladeShape=new THREE.Shape();
+scalpelBladeShape.moveTo(0,-0.15);scalpelBladeShape.lineTo(0.02,0.1);scalpelBladeShape.lineTo(-0.02,0.1);scalpelBladeShape.lineTo(0,-0.15);
+const scalpelGeo=new THREE.ExtrudeGeometry(scalpelBladeShape,{depth:0.008,bevelEnabled:false});
+const knifeBlade=new THREE.Mesh(scalpelGeo,new THREE.MeshStandardMaterial({color:0xddddee,metalness:0.95,roughness:0.05}));
+knifeBlade.position.set(.4,-.25,-.6);knifeBlade.rotation.x=0;knifeGroup.add(knifeBlade);
+// Scalpel finger grip ridges
+const knifeGuard=new THREE.Mesh(new THREE.BoxGeometry(.05,.05,.02),new THREE.MeshStandardMaterial({color:0x888888,metalness:0.7}));
+knifeGuard.position.set(.4,-.25,-.52);knifeGroup.add(knifeGuard);
+// Scalpel tip marker (glint)
+const knifeTip=new THREE.Mesh(new THREE.SphereGeometry(.015,8,8),new THREE.MeshStandardMaterial({color:0xffffff,emissive:0x88aaff,emissiveIntensity:0.5,metalness:0.9,roughness:0.0}));
+knifeTip.position.set(.4,-.25,-.78);knifeGroup.add(knifeTip);
 camera.add(knifeGroup);
 
 // --- NAME LABEL SPRITE ---
@@ -710,20 +724,38 @@ document.addEventListener('pointerlockchange',()=>{
 const playerTracers=[];
 function spawnPlayerTracer(origin,dir){
   const speed=120;
-  const geo=new THREE.SphereGeometry(.06,4,4);
-  const mat=new THREE.MeshStandardMaterial({color:0xffff44,emissive:0xffff88,emissiveIntensity:1.5});
-  const mesh=new THREE.Mesh(geo,mat);
-  mesh.position.copy(origin);
-  // Tracer line
-  const lineGeo=new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(0,0,0),
-    dir.clone().multiplyScalar(-1.2)
-  ]);
-  const lineMat=new THREE.LineBasicMaterial({color:0xffff88,transparent:true,opacity:.8});
-  const line=new THREE.Line(lineGeo,lineMat);
-  mesh.add(line);
-  scene.add(mesh);
-  playerTracers.push({mesh,dir:dir.normalize(),speed,age:0,maxAge:1});
+  // Laser beam - thin red cylinder with glow
+  const beamLen=1.5;
+  const beamGeo=new THREE.CylinderGeometry(.008,.008,beamLen,6);
+  beamGeo.rotateX(Math.PI/2);beamGeo.translate(0,0,-beamLen/2);
+  const beamMat=new THREE.MeshStandardMaterial({color:0xff0000,emissive:0xff0000,emissiveIntensity:3,transparent:true,opacity:0.95});
+  const beam=new THREE.Mesh(beamGeo,beamMat);
+  // Outer glow
+  const glowGeo=new THREE.CylinderGeometry(.025,.025,beamLen,6);
+  glowGeo.rotateX(Math.PI/2);glowGeo.translate(0,0,-beamLen/2);
+  const glowMat=new THREE.MeshBasicMaterial({color:0xff2200,transparent:true,opacity:0.25});
+  const glow=new THREE.Mesh(glowGeo,glowMat);
+  beam.add(glow);
+  // Core point
+  const coreGeo=new THREE.SphereGeometry(.012,6,6);
+  const coreMat=new THREE.MeshStandardMaterial({color:0xff4444,emissive:0xff0000,emissiveIntensity:2});
+  const core=new THREE.Mesh(coreGeo,coreMat);
+  beam.add(core);
+  beam.position.copy(origin);
+  beam.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,-1),dir.clone().normalize());
+  scene.add(beam);
+  // Zap particle trail
+  for(let i=0;i<4;i++){
+    const sparkGeo=new THREE.SphereGeometry(.01,4,4);
+    const sparkMat=new THREE.MeshBasicMaterial({color:0xff4400,transparent:true,opacity:0.7});
+    const spark=new THREE.Mesh(sparkGeo,sparkMat);
+    spark.position.copy(origin).add(dir.clone().normalize().multiplyScalar(Math.random()*0.5));
+    spark.position.x+=(Math.random()-0.5)*0.04;
+    spark.position.y+=(Math.random()-0.5)*0.04;
+    scene.add(spark);
+    setTimeout(()=>scene.remove(spark),100+Math.random()*100);
+  }
+  playerTracers.push({mesh:beam,dir:dir.normalize(),speed,age:0,maxAge:1});
 }
 
 // --- LINE OF SIGHT CHECK ---
@@ -929,16 +961,32 @@ function showKnifeSlash(){
   c.width=innerWidth;c.height=innerHeight;
   const ctx=c.getContext('2d');
   ctx.clearRect(0,0,c.width,c.height);
-  const cx=c.width/2,cy=c.height/2,r=Math.min(c.width,c.height)*0.35;
-  ctx.strokeStyle='rgba(255,255,255,0.8)';ctx.lineWidth=4;ctx.shadowColor='#fff';ctx.shadowBlur=15;
+  const cx=c.width/2,cy=c.height/2;
+  // Scalpel swipe - thin precise silver line
+  ctx.strokeStyle='rgba(200,210,220,0.9)';ctx.lineWidth=2;ctx.shadowColor='#aaccff';ctx.shadowBlur=10;
   ctx.beginPath();
-  ctx.arc(cx,cy,r,-Math.PI*0.6,-Math.PI*0.1);
+  // Quick precise diagonal cut
+  ctx.moveTo(cx-80,cy+60);ctx.lineTo(cx+60,cy-80);
   ctx.stroke();
+  // Secondary thin line (surgical precision)
+  ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=1;ctx.shadowBlur=5;
   ctx.beginPath();
-  ctx.arc(cx,cy,r*0.85,-Math.PI*0.55,-Math.PI*0.15);
-  ctx.lineWidth=2;ctx.stroke();
+  ctx.moveTo(cx-70,cy+55);ctx.lineTo(cx+55,cy-72);
+  ctx.stroke();
+  // Blood splatter effect at impact point
+  ctx.shadowColor='#f00';ctx.shadowBlur=0;
+  const bx=cx+40,by=cy-50;
+  for(let i=0;i<8;i++){
+    const angle=Math.random()*Math.PI*2;
+    const dist=Math.random()*25+5;
+    const sz=Math.random()*3+1;
+    ctx.fillStyle=`rgba(${180+Math.random()*75|0},0,0,${0.4+Math.random()*0.5})`;
+    ctx.beginPath();
+    ctx.arc(bx+Math.cos(angle)*dist,by+Math.sin(angle)*dist,sz,0,Math.PI*2);
+    ctx.fill();
+  }
   c.style.opacity=1;
-  setTimeout(()=>{c.style.opacity=0;ctx.clearRect(0,0,c.width,c.height)},150);
+  setTimeout(()=>{c.style.opacity=0;ctx.clearRect(0,0,c.width,c.height)},120);
 }
 
 function startReload(){reloading=true;reloadTimer=reloadDuration=1.5;playSound('reload');document.getElementById('reload-bar').style.display='block'}
@@ -962,7 +1010,7 @@ function killEnemy(e,headshot,knife){
   const pts=knife?200:headshot?150:100;
   score+=pts;
   let txt;
-  if(knife)txt='KNIFED '+e.type+'! +200';
+  if(knife)txt='SCALPELED '+e.type+'! +200';
   else if(headshot)txt='HEADSHOT on '+e.type+'! +150';
   else txt='Eliminated '+e.type+' +'+pts;
   addKillFeed(txt);
