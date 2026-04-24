@@ -204,7 +204,7 @@ renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
 // Lights
-const ambient=new THREE.AmbientLight(0xddeeff,1.2);
+const ambient=new THREE.AmbientLight(0xddeeff,0.7);
 scene.add(ambient);
 const dirLight=new THREE.DirectionalLight(0xffffff,0.4);
 dirLight.position.set(10,20,10);
@@ -225,28 +225,46 @@ for(let i=0;i<4;i++){
 // Additional fluorescent panels
 for(let ix=-1;ix<=1;ix+=2){
   for(let iz=-1;iz<=1;iz+=2){
-    const flPanel=new THREE.Mesh(new THREE.BoxGeometry(3,0.1,0.6),new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xccddff,emissiveIntensity:2}));
+    const flPanel=new THREE.Mesh(new THREE.BoxGeometry(3,0.1,0.6),new THREE.MeshStandardMaterial({color:0xffffff,emissive:0xccddff,emissiveIntensity:1.2}));
     flPanel.position.set(ix*15,4.95,iz*15);scene.add(flPanel);
   }
 }
 
 // --- MAP ---
 const floorGeo=new THREE.PlaneGeometry(ARENA,ARENA);
-const floorMat=new THREE.MeshStandardMaterial({color:0xe0e0e0,roughness:0.3});
+const floorMat=new THREE.MeshStandardMaterial({color:0x8a9aaa,roughness:0.4});
 const floor=new THREE.Mesh(floorGeo,floorMat);
 floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;
 scene.add(floor);
 
-const ceil=new THREE.Mesh(new THREE.PlaneGeometry(ARENA,ARENA),new THREE.MeshStandardMaterial({color:0xffffff}));
+// Colored floor navigation lines (hospital style)
+function addFloorLine(x,z,w,d,color){
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),new THREE.MeshStandardMaterial({color:color,roughness:0.5}));
+  m.rotation.x=-Math.PI/2;m.position.set(x,0.01,z);scene.add(m);
+}
+// Red line to ER (north)
+addFloorLine(0,-15,0.15,28,0xcc3333);
+// Blue line to Pediatrics (east)
+addFloorLine(15,0,28,0.15,0x3366cc);
+// Green line to Surgery (south)
+addFloorLine(0,15,0.15,28,0x33aa44);
+// Yellow line to Radiology (west)
+addFloorLine(-15,0,28,0.15,0xccaa22);
+
+const ceil=new THREE.Mesh(new THREE.PlaneGeometry(ARENA,ARENA),new THREE.MeshStandardMaterial({color:0xd8dde3}));
 ceil.rotation.x=Math.PI/2;ceil.position.y=WALLH;scene.add(ceil);
 
 const walls=[];
 function addWall(x,z,w,d,h,color){
-  const geo=new THREE.BoxGeometry(w,h||WALLH,d);
+  const wh=h||WALLH;
+  const geo=new THREE.BoxGeometry(w,wh,d);
   const mat=new THREE.MeshStandardMaterial({color:color||0xd0ddd0,roughness:0.5});
   const m=new THREE.Mesh(geo,mat);
-  m.position.set(x,(h||WALLH)/2,z);m.castShadow=true;m.receiveShadow=true;
+  m.position.set(x,wh/2,z);m.castShadow=true;m.receiveShadow=true;
   scene.add(m);walls.push(m);
+  // Baseboard strip
+  const bb=new THREE.Mesh(new THREE.BoxGeometry(w+0.02,0.5,d+0.02),new THREE.MeshStandardMaterial({color:0x2a3a4a,roughness:0.6}));
+  bb.position.set(x,0.25,z);scene.add(bb);
   return m;
 }
 
@@ -272,8 +290,8 @@ for(let i=0;i<12;i++){
 // --- RED CROSSES ON WALLS ---
 function addRedCross(x,y,z,rotY){
   const g=new THREE.Group();
-  const hBar=new THREE.Mesh(new THREE.BoxGeometry(1.2,0.05,0.3),new THREE.MeshStandardMaterial({color:0xff0000}));
-  const vBar=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.05,1.2),new THREE.MeshStandardMaterial({color:0xff0000}));
+  const hBar=new THREE.Mesh(new THREE.BoxGeometry(2.0,0.06,0.5),new THREE.MeshStandardMaterial({color:0xcc0000,emissive:0x660000,emissiveIntensity:0.3}));
+  const vBar=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.06,2.0),new THREE.MeshStandardMaterial({color:0xcc0000,emissive:0x660000,emissiveIntensity:0.3}));
   g.add(hBar);g.add(vBar);
   g.position.set(x,y,z);g.rotation.y=rotY||0;
   scene.add(g);
@@ -287,7 +305,7 @@ addRedCross(15,2.5,29.4,0);// front wall
 function addBed(x,z,rotY){
   const g=new THREE.Group();
   // mattress
-  const frame=new THREE.Mesh(new THREE.BoxGeometry(1,0.3,2),new THREE.MeshStandardMaterial({color:0xffffff}));
+  const frame=new THREE.Mesh(new THREE.BoxGeometry(1,0.3,2),new THREE.MeshStandardMaterial({color:0xe8e8e8}));
   frame.position.y=0.55;g.add(frame);
   // legs
   const legMat=new THREE.MeshStandardMaterial({color:0xcccccc,metalness:0.5});
@@ -296,7 +314,10 @@ function addBed(x,z,rotY){
     leg.position.set(lx,0.2,lz);g.add(leg);
   }
   // headboard
-  const hb=new THREE.Mesh(new THREE.BoxGeometry(1,0.5,0.08),new THREE.MeshStandardMaterial({color:0xeeeeee}));
+  // Blue blanket
+  const blanket=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.08,1.2),new THREE.MeshStandardMaterial({color:0x3366aa}));
+  blanket.position.set(0,0.72,0.2);g.add(blanket);
+  const hb=new THREE.Mesh(new THREE.BoxGeometry(1,0.5,0.08),new THREE.MeshStandardMaterial({color:0xdddddd}));
   hb.position.set(0,0.9,-0.95);g.add(hb);
   g.position.set(x,0,z);g.rotation.y=rotY||0;scene.add(g);
 }
@@ -309,7 +330,7 @@ function addIVStand(x,z){
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,1.8,6),new THREE.MeshStandardMaterial({color:0xcccccc,metalness:0.6}));
   pole.position.y=0.9;g.add(pole);
   // bag
-  const bag=new THREE.Mesh(new THREE.BoxGeometry(0.15,0.25,0.08),new THREE.MeshStandardMaterial({color:0xaaddff,transparent:true,opacity:0.7}));
+  const bag=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.3,0.1),new THREE.MeshStandardMaterial({color:0x44aaff,transparent:true,opacity:0.85}));
   bag.position.set(0.1,1.6,0);g.add(bag);
   // base
   const base=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.05,8),new THREE.MeshStandardMaterial({color:0xaaaaaa,metalness:0.5}));
