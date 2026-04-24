@@ -843,6 +843,12 @@ function scheduleWaveSpawn(delay){
 function killEnemy(e,headshot,knife){
   if(e.dead)return;
   e.dead=true;e.deathTimer=1.2;
+
+  // MISSION FAILED if Bill is killed
+  if(e.type==='Bill'){
+    setTimeout(()=>missionFailed(),100);
+    return; // skip normal wave logic below
+  }
   playSound('enemyDeath');
   const pts=knife?200:headshot?150:100;
   score+=pts;
@@ -903,6 +909,86 @@ function die(){
   alive=false;
   document.exitPointerLock();
   showNameEntry();
+}
+
+function missionFailed(){
+  alive=false;
+  document.exitPointerLock();
+  playSound('enemyDeath');
+
+  // Create dramatic red overlay
+  const overlay=document.createElement('div');
+  overlay.id='mission-failed';
+  overlay.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0);transition:background 1s;';
+  document.body.appendChild(overlay);
+
+  requestAnimationFrame(()=>{
+    overlay.style.background='rgba(120,0,0,0.85)';
+  });
+
+  // Scanline effect
+  const scanlines=document.createElement('div');
+  scanlines.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.15) 2px,rgba(0,0,0,0.15) 4px);pointer-events:none;';
+  overlay.appendChild(scanlines);
+
+  const title=document.createElement('h1');
+  title.textContent='MISSION FAILED';
+  title.style.cssText='color:#ff2222;font-size:72px;font-family:monospace;text-shadow:0 0 30px #ff0000,0 0 60px #ff0000,0 0 90px #880000;letter-spacing:8px;margin-bottom:20px;opacity:0;transform:scale(2);transition:all 0.6s ease-out;';
+  overlay.appendChild(title);
+
+  setTimeout(()=>{title.style.opacity='1';title.style.transform='scale(1)';},200);
+
+  const msg=document.createElement('p');
+  msg.textContent='Bill has been killed. You failed to cure him in time.';
+  msg.style.cssText='color:#ff8888;font-size:22px;font-family:monospace;margin-bottom:10px;opacity:0;transition:opacity 0.5s 1s;';
+  overlay.appendChild(msg);
+  setTimeout(()=>{msg.style.opacity='1';},100);
+
+  const submsg=document.createElement('p');
+  submsg.innerHTML='Score: '+score+' | Wave: '+wave;
+  submsg.style.cssText='color:#ff6666;font-size:16px;font-family:monospace;margin-bottom:40px;opacity:0;transition:opacity 0.5s 1.2s;';
+  overlay.appendChild(submsg);
+  setTimeout(()=>{submsg.style.opacity='1';},100);
+
+  const btn=document.createElement('button');
+  btn.textContent='⟳ TRY AGAIN';
+  btn.style.cssText='padding:16px 48px;font-size:24px;font-family:monospace;background:#880000;color:#fff;border:2px solid #ff4444;cursor:pointer;letter-spacing:3px;opacity:0;transition:all 0.3s 1.5s;';
+  btn.onmouseover=()=>{btn.style.background='#cc0000';btn.style.boxShadow='0 0 20px #ff0000';};
+  btn.onmouseout=()=>{btn.style.background='#880000';btn.style.boxShadow='none';};
+  btn.onclick=()=>{overlay.remove();restartGame();};
+  overlay.appendChild(btn);
+  setTimeout(()=>{btn.style.opacity='1';},100);
+}
+
+function restartGame(){
+  // Clean up enemies and objects
+  enemies.forEach(e=>{if(e.group)scene.remove(e.group);});
+  enemies.length=0;
+  projectiles.forEach(p=>{if(p.mesh)scene.remove(p.mesh);});
+  projectiles.length=0;
+  pickups.forEach(p=>{if(p.mesh)scene.remove(p.mesh);});
+  pickups.length=0;
+  kidneyItems.forEach(k=>{if(k.mesh)scene.remove(k.mesh);});
+  kidneyItems.length=0;
+  if(fixParticles.length)fixParticles.forEach(p=>{if(p.parent)p.parent.remove(p);});
+  fixParticles.length=0;kidneyFixParticles.length=0;
+
+  // Reset state
+  hp=100;score=0;wave=1;kills=0;alive=true;
+  kidneysCollected=0;kidneysDone=false;kidneyFixTimer=0;billRef=null;
+  ammo={pistol:12,shotgun:8,smg:30,sniper:5,knife:Infinity};
+  updateHUD();
+
+  // Hide overlays
+  const ne=document.getElementById('name-entry');if(ne)ne.style.display='none';
+  const ws=document.getElementById('win-screen');if(ws)ws.style.display='none';
+
+  // Respawn player
+  camera.position.set(0,1.7,0);
+  camera.rotation.set(0,0,0);
+
+  // Start new wave
+  scheduleWaveSpawn(1000);
 }
 
 function showNameEntry(){
