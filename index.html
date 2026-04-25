@@ -203,7 +203,7 @@ let hp=MAXHP, ammo=30, reserve=90, score=0, wave=1, alive=true, playing=false;
 let enemies=[], pickups=[], projectiles=[], fireCooldown=0, reloading=false, reloadTimer=0, reloadDuration=1.5;
 let kidneyPickups=[], kidneysCollected=0, totalKidneys=7, kidneysDone=false, kidneyFixTimer=0;
 let kidneyFixTimerStart=0;
-let _waveSpawnPending=false;
+let billRef=null, kidneyFixParticles=[], _waveSpawnPending=false;
 let yaw=0, pitch=0, velocity=new THREE.Vector3();
 let knifeCooldown=0;const KNIFE_CD=0.5,KNIFE_RANGE=2.5,KNIFE_DMG_MIN=75,KNIFE_DMG_MAX=100;
 let currentWeapon='gun';
