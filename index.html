@@ -166,9 +166,16 @@ function ensureAudio(){
 
 function playSound(type){
   ensureAudio();
-  if(!audioCtx){console.warn('[audio] playSound("'+type+'") skipped — no audioCtx');return}
+  if(!audioCtx){return}
+  // If still suspended, schedule sound slightly in the future when resume should complete
+  if(audioCtx.state==='suspended'){
+    console.log('[audio] Context still suspended, scheduling sound for 100ms later');
+    setTimeout(()=>playSound(type),100);
+    return;
+  }
   const ctx=audioCtx;const g=ctx.createGain();g.connect(ctx.destination);const now=ctx.currentTime;
   const vol=soundVolume;
+  if(vol<=0)return; // Skip silent sounds
   if(type==='gunshot'){
     // Short noise burst
     const buf=ctx.createBuffer(1,ctx.sampleRate*0.08,ctx.sampleRate);
@@ -196,7 +203,7 @@ let hp=MAXHP, ammo=30, reserve=90, score=0, wave=1, alive=true, playing=false;
 let enemies=[], pickups=[], projectiles=[], fireCooldown=0, reloading=false, reloadTimer=0, reloadDuration=1.5;
 let kidneyPickups=[], kidneysCollected=0, totalKidneys=7, kidneysDone=false, kidneyFixTimer=0;
 let kidneyFixTimerStart=0;
-let billRef=null, kidneyFixParticles=[];
+let _waveSpawnPending=false;
 let yaw=0, pitch=0, velocity=new THREE.Vector3();
 let knifeCooldown=0;const KNIFE_CD=0.5,KNIFE_RANGE=2.5,KNIFE_DMG_MIN=75,KNIFE_DMG_MAX=100;
 let currentWeapon='gun';
@@ -629,12 +636,17 @@ function updateKidneyHUD(){
 
 const MAX_WAVES=3;
 function spawnWave(){
-  console.log('[spawnWave] called. wave:', wave, 'MAX_WAVES:', MAX_WAVES, 'enemyTypeIndex:', enemyTypeIndex);
+  console.log('[spawnWave] called. wave:', wave, 'MAX_WAVES:', MAX_WAVES, 'enemyTypeIndex:', enemyTypeIndex, 'enemies before:', enemies.length);
   // Difficulty scaling per wave
   const baseCount=3+wave*2;
   const extraEnemies=wave===1?0:wave===2?2:4;
   const count=baseCount+extraEnemies;
   const speedMult=wave===1?1:wave===2?1.15:1.3;
+  // Clear any stale state before spawning
+  enemies.forEach(e=>{try{scene.remove(e.group)}catch(er){}});
+  enemies=[];
+  kidneyPickups.forEach(k=>{if(!k.collected)try{scene.remove(k.mesh)}catch(er){}});
+  kidneyPickups=[];
   for(let i=0;i<count;i++)spawnEnemySkipBill(speedMult);
   // Always spawn Bill
   spawnBill();
@@ -644,6 +656,7 @@ function spawnWave(){
   wi.style.opacity=1;
   setTimeout(()=>wi.style.opacity=0,2500);
   updateHUD();
+  console.log('[spawnWave] done. enemies:', enemies.length, 'kidneys:', kidneyPickups.length, 'has Bill:', enemies.some(e=>e.type==='Bill'));
 }
 
 function spawnBill(){
@@ -1295,7 +1308,7 @@ function restart(){
   // Remove kidney pickups and particles
   kidneyPickups.forEach(k=>{if(!k.collected)scene.remove(k.mesh)});kidneyPickups=[];
   kidneyFixParticles.forEach(p=>scene.remove(p.mesh));kidneyFixParticles=[];
-  kidneysCollected=0;kidneysDone=false;kidneyFixTimer=0;kidneyFixTimerStart=0;billRef=null;
+  kidneysCollected=0;kidneysDone=false;kidneyFixTimer=0;kidneyFixTimerStart=0;billRef=null;_waveSpawnPending=false;
   if(waveSpawnTimer){clearTimeout(waveSpawnTimer);waveSpawnTimer=null}
 
   // Hide ALL overlays explicitly to prevent stuck UI
@@ -1701,19 +1714,44 @@ function animate(){
         kidneyPickups.forEach(k=>{if(!k.collected)scene.remove(k.mesh)});kidneyPickups=[];
         kidneyFixParticles.forEach(p=>scene.remove(p.mesh));kidneyFixParticles=[];
         billRef=null;
+        // Reset kidney state for next wave
+        kidneysCollected=0;
+        _waveSpawnPending=true;
         hp=Math.min(MAXHP, hp+30);
         reserve+=30;
         score+=500;
         wave++;
         updateHUD();
         console.log('[cure] Spawning wave',wave,'via setTimeout 3s');
+        const nextWave=wave;
         setTimeout(()=>{
-          wi.style.opacity=0;
-          spawnWave();
-          console.log('[cure] Wave',wave,'spawned. Enemies:',enemies.length);
+          _waveSpawnPending=false;
+          try{
+            wi.style.opacity=0;
+            console.log('[cure] setTimeout fired, spawning wave',nextWave,'enemies before:',enemies.length);
+            spawnWave();
+            console.log('[cure] Wave',wave,'spawned. Enemies:',enemies.length,'Kidneys:',kidneyPickups.length);
+          }catch(err){
+            console.error('[cure] spawnWave FAILED:',err);
+            // Safety: try again after 1 second
+            setTimeout(()=>{try{spawnWave();console.log('[cure] Retry spawned wave',wave,'Enemies:',enemies.length)}catch(e2){console.error('[cure] Retry also failed:',e2)}},1000);
+          }
         },3000);
       }
     }
+  }
+
+  // Safety net: if wave spawn is pending too long, force spawn
+  if(_waveSpawnPending&&enemies.length===0){
+    if(!window._waveSafetyTimer)window._waveSafetyTimer=performance.now();
+    if(performance.now()-window._waveSafetyTimer>6000){
+      console.warn('[safety] Wave spawn pending > 6s with no enemies! Force-spawning wave',wave);
+      _waveSpawnPending=false;
+      window._waveSafetyTimer=null;
+      try{spawnWave()}catch(e){console.error('[safety] Force spawn failed:',e)}
+    }
+  }else{
+    window._waveSafetyTimer=null;
   }
 
   renderer.render(scene,camera);
