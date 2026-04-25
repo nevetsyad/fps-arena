@@ -1486,10 +1486,10 @@ function animate(){
         e.la.rotation.x*=.9;e.ra.rotation.x*=.9;
       }
 
-      // Melee attack (Bill katana)
-      if(isMelee){
+      // Melee attack (Bill katana) — stop attacking if all kidneys collected
+      if(isMelee && kidneysCollected<totalKidneys){
         e.meleeCooldown-=dt;
-        if(dist<2.0 && e.meleeCooldown<=0 && !kidneysDone){
+        if(dist<2.0 && e.meleeCooldown<=0){
           damagePlayer(15+wave*2);
           e.meleeCooldown=0.8;
           e.meleeSwing=1.0;
@@ -1613,6 +1613,9 @@ function animate(){
         scene.remove(k.mesh);
         updateKidneyHUD();
         addKillFeed('Kidney collected! ('+kidneysCollected+'/'+totalKidneys+')');
+        if(kidneysCollected>=totalKidneys){
+          addKillFeed('✅ All kidneys collected! Walk to Bill to cure him!');
+        }
       }
     }
 
@@ -1625,7 +1628,7 @@ function animate(){
     if(kidneysCollected>=totalKidneys&&!kidneysDone&&billRef&&!billRef.dead){
       const bp=billRef.group.position;
       const dx=camera.position.x-bp.x,dz=camera.position.z-bp.z;
-      if(dx*dx+dz*dz<4){
+      if(dx*dx+dz*dz<16){
         kidneysDone=true;
         kidneyFixTimerStart=performance.now();
         console.log('[cure] Kidney fix started! Timer: 3000ms, Wave:', wave);
