@@ -1619,19 +1619,23 @@ function animate(){
       }
     }
 
-    // Bill reference tracking — always update if billRef is null or dead
-    if(!billRef || billRef.dead){
-      billRef=enemies.find(e=>e.type==='Bill'&&!e.dead)||null;
-    }
+    // Bill reference tracking — always update every frame for robustness
+    billRef=enemies.find(e=>e.type==='Bill'&&!e.dead)||null;
 
-    // Kidney fix: touch Bill when all kidneys collected
+    // Kidney fix: touch Bill when all kidneys collected (distance threshold = 6 units)
     if(kidneysCollected>=totalKidneys&&!kidneysDone&&billRef&&!billRef.dead){
       const bp=billRef.group.position;
       const dx=camera.position.x-bp.x,dz=camera.position.z-bp.z;
-      if(dx*dx+dz*dz<16){
+      const distSq=dx*dx+dz*dz;
+      // Debug: log distance every ~2 seconds
+      if(!window._cureDebugTimer||performance.now()-window._cureDebugTimer>2000){
+        window._cureDebugTimer=performance.now();
+        console.log('[cure-debug] All kidneys collected. Bill alive:', !billRef.dead, 'Dist to Bill:', Math.sqrt(distSq).toFixed(1), 'Need < 6');
+      }
+      if(distSq<36){ // 6 unit radius
         kidneysDone=true;
         kidneyFixTimerStart=performance.now();
-        console.log('[cure] Kidney fix started! Timer: 3000ms, Wave:', wave);
+        console.log('[cure] Kidney fix started! Timer: 3000ms, Wave:', wave, 'Dist:', Math.sqrt(distSq).toFixed(1));
         addKillFeed('⚠ Bill\'s kidneys are being fixed!');
         // Green glow on Bill
         if(billRef.kidneys){
