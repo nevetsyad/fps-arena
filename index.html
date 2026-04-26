@@ -1719,7 +1719,7 @@ function animate(){
     if(elapsed>=3000){
       kidneyFixTimerStart=0;
       kidneysDone=false;
-      console.log('[cure] 3s elapsed! wave:', wave);
+      console.log('[cure] 3s elapsed! wave:', wave, 'MAX_WAVES:', MAX_WAVES);
       if(wave>=MAX_WAVES){
         alive=false;
         document.exitPointerLock();
@@ -1727,32 +1727,37 @@ function animate(){
         document.getElementById('success-stats').textContent='Score: '+score+' | Waves: '+wave+'/'+MAX_WAVES;
         document.getElementById('mission-success').style.display='flex';startConfetti();
       } else {
-        const wi=document.getElementById('wave-info');
-        wi.textContent='✦ WAVE '+wave+' COMPLETE ✦';
-        wi.style.opacity=1;
-        addKillFeed('Wave '+wave+' complete! Prepare for wave '+(wave+1)+'...');
-        enemies.forEach(e=>scene.remove(e.group));enemies=[];
-        projectiles.forEach(p=>scene.remove(p.mesh));projectiles=[];
-        pickups.forEach(p=>scene.remove(p.mesh));pickups=[];
-        playerTracers.forEach(t=>scene.remove(t.mesh));playerTracers=[];
-        kidneyPickups.forEach(k=>{if(!k.collected)scene.remove(k.mesh)});kidneyPickups=[];
-        kidneyFixParticles.forEach(p=>scene.remove(p.mesh));kidneyFixParticles=[];
-        billRef=null;
-        // Reset kidney state for next wave
-        kidneysCollected=0;
-        _waveSpawnPending=true;
-        _waitingForWaveStart=true;
-        hp=Math.min(MAXHP, hp+30);
-        reserve+=30;
-        score+=500;
-        wave++;
-        updateHUD();
-        // Show "Click to continue" prompt — player can walk around freely
-        const prompt=document.getElementById('wave-click-prompt');
-        prompt.textContent='▶ Click to start Wave '+wave+' ▶';
-        prompt.style.opacity='1';
-        prompt.style.animation='prompt-pulse 1.5s ease-in-out infinite';
-        console.log('[cure] Waiting for player click to start wave',wave);
+        console.log('[cure] Entering wave transition for wave', wave);
+        try {
+          const wi=document.getElementById('wave-info');
+          wi.textContent='✦ WAVE '+wave+' COMPLETE ✦';
+          wi.style.opacity=1;
+          addKillFeed('Wave '+wave+' complete! Click to start wave '+(wave+1)+'...');
+          enemies.forEach(e=>{try{scene.remove(e.group)}catch(er){}});enemies=[];
+          projectiles.forEach(p=>{try{scene.remove(p.mesh)}catch(er){}});projectiles=[];
+          pickups.forEach(p=>{try{scene.remove(p.mesh)}catch(er){}});pickups=[];
+          playerTracers.forEach(t=>{try{scene.remove(t.mesh)}catch(er){}});playerTracers=[];
+          kidneyPickups.forEach(k=>{if(!k.collected)try{scene.remove(k.mesh)}catch(er){}});kidneyPickups=[];
+          kidneyFixParticles.forEach(p=>{try{scene.remove(p.mesh)}catch(er){}});kidneyFixParticles=[];
+          billRef=null;
+          kidneysCollected=0;
+          _waveSpawnPending=true;
+          _waitingForWaveStart=true;
+          hp=Math.min(MAXHP, hp+30);
+          reserve+=30;
+          score+=500;
+          wave++;
+          updateHUD();
+          const prompt=document.getElementById('wave-click-prompt');
+          if(prompt){
+            prompt.textContent='▶ Click to start Wave '+wave+' ▶';
+            prompt.style.opacity='1';
+            prompt.style.animation='prompt-pulse 1.5s ease-in-out infinite';
+          }
+          console.log('[cure] ✅ Waiting for player click to start wave',wave,'| _waitingForWaveStart:',_waitingForWaveStart);
+        } catch(err) {
+          console.error('[cure] ❌ Wave transition FAILED:', err);
+        }
       }
     }
   }
