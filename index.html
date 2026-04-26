@@ -530,19 +530,19 @@ function spawnEnemy(speedMult){
   // Gun or katana in right hand
   let katana=null;
   if(type.melee){
-    // Bill's katana — oversized/bright so it reads clearly in first-person chaos
+    // Bill's katana — deliberately huge/bright so it reads clearly in first-person chaos
     const swordGroup=new THREE.Group();
     swordGroup.name='BillKatana';
-    swordGroup.position.set(0,-.05,-.22);
-    swordGroup.rotation.x=-0.35;
-    const handle=new THREE.Mesh(new THREE.BoxGeometry(.08,.08,.34),new THREE.MeshStandardMaterial({color:0x553311,roughness:.5}));
+    swordGroup.position.set(bw/2+.35*sc,body.position.y+.05*sc,-.28*sc);
+    swordGroup.rotation.set(-0.75,0,0.22);
+    const handle=new THREE.Mesh(new THREE.BoxGeometry(.10*sc,.10*sc,.46*sc),new THREE.MeshStandardMaterial({color:0x553311,roughness:.5}));
     handle.position.set(0,0,0);swordGroup.add(handle);
-    const guard=new THREE.Mesh(new THREE.BoxGeometry(.36,.06,.08),new THREE.MeshStandardMaterial({color:0xffcc00,metalness:.6,roughness:.25}));
-    guard.position.set(0,0,-.2);swordGroup.add(guard);
-    const blade=new THREE.Mesh(new THREE.BoxGeometry(.055,.055,1.45),new THREE.MeshStandardMaterial({color:0xeef6ff,emissive:0x6688ff,emissiveIntensity:.35,metalness:.9,roughness:.12}));
-    blade.position.set(0,0,-.95);swordGroup.add(blade);
-    ra.add(swordGroup);
-    katana=ra;
+    const guard=new THREE.Mesh(new THREE.BoxGeometry(.52*sc,.08*sc,.10*sc),new THREE.MeshStandardMaterial({color:0xffcc00,emissive:0x664400,emissiveIntensity:.25,metalness:.6,roughness:.25}));
+    guard.position.set(0,0,-.28*sc);swordGroup.add(guard);
+    const blade=new THREE.Mesh(new THREE.BoxGeometry(.075*sc,.075*sc,2.25*sc),new THREE.MeshStandardMaterial({color:0xffffff,emissive:0x77aaff,emissiveIntensity:.85,metalness:.9,roughness:.08}));
+    blade.position.set(0,0,-1.45*sc);swordGroup.add(blade);
+    group.add(swordGroup);
+    katana=swordGroup;
   } else {
     const gun=new THREE.Mesh(new THREE.BoxGeometry(.08,.08,.4),new THREE.MeshStandardMaterial({color:0x444444}));
     gun.position.set(0,0,-.25);ra.add(gun);
@@ -1653,7 +1653,7 @@ function animate(){
       // Enemy friendly fire: enemy bullets can accidentally hit any other living enemy first
       let hitEnemy=null, hitEnemyDist=Infinity;
       for(const e of enemies){
-        if(e.dead||e===p.owner)continue;
+        if(e.dead||e===p.owner||e.type==='Bill')continue;
         const center=e.group.position.clone().add(new THREE.Vector3(0,1.0,0));
         const radius=e.type==='Bill'?0.9:0.7;
         const closest=prev.clone().add(p.dir.clone().multiplyScalar(Math.max(0,Math.min(segLen,center.clone().sub(prev).dot(p.dir)))));
