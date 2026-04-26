@@ -688,7 +688,7 @@ function spawnPickup(x,z,type){
 }
 
 // --- PROJECTILES (visible enemy bullets) ---
-function spawnProjectile(from,to,dmg,enemyColor){
+function spawnProjectile(from,to,dmg,enemyColor,owner=null){
   const dir=new THREE.Vector3().subVectors(to,from).normalize();
   const speed=35;
   const geo=new THREE.SphereGeometry(.08,6,6);
@@ -704,7 +704,7 @@ function spawnProjectile(from,to,dmg,enemyColor){
   const line=new THREE.Line(lineGeo,lineMat);
   mesh.add(line);
   scene.add(mesh);
-  projectiles.push({mesh,dir,speed,dmg,age:0,maxAge:3});
+  projectiles.push({mesh,dir,speed,dmg,owner,age:0,maxAge:3});
 }
 
 // --- INPUT ---
@@ -889,7 +889,12 @@ function shoot(){
     }
   }
 
-  if(hitEnemy){
+  const wallHits=raycaster.intersectObjects(collidables);
+  const wallDist=wallHits.length>0?wallHits[0].distance:Infinity;
+  if(wallDist<hitDist){
+    // Wall blocks the shot before it can hit an enemy.
+    createSpark(wallHits[0].point);
+  } else if(hitEnemy){
     if(hitKidney){
       const dmg=BULLET_DMG*10;
       hitEnemy.hp-=dmg;
@@ -906,11 +911,6 @@ function shoot(){
       setTimeout(()=>{hitEnemy.body.material.emissive.set(0);hitEnemy.head.material.emissive.set(0)},80);
     }
     if(hitEnemy.hp<=0&&!hitEnemy.dead)killEnemy(hitEnemy,hitKidney?false:raycaster.intersectObjects([hitEnemy.head]).length>0);
-  }
-
-  const wallHits=raycaster.intersectObjects(collidables);
-  if(wallHits.length>0&&wallHits[0].distance<hitDist){
-    createSpark(wallHits[0].point);
   }
 
   if(ammo===0&&reserve>0)startReload();
@@ -1617,7 +1617,7 @@ function animate(){
           target.x+=(Math.random()-.5)*2*(1-acc);
           target.y+=(Math.random()-.5)*2*(1-acc);
           target.z+=(Math.random()-.5)*2*(1-acc);
-          spawnProjectile(eyePos,target,dmg,e.typeColor);
+          spawnProjectile(eyePos,target,dmg,e.typeColor,e);
         }
       }
       } // end non-melee
@@ -1628,8 +1628,47 @@ function animate(){
     for(let i=projectiles.length-1;i>=0;i--){
       const p=projectiles[i];
       p.age+=dt;
+      const prev=p.mesh.position.clone();
       const move=p.dir.clone().multiplyScalar(p.speed*dt);
       p.mesh.position.add(move);
+
+      // Check wall hit along the whole movement segment (prevents fast bullets tunneling through walls)
+      let hitWall=false, hitPos=p.mesh.position.clone();
+      const segLen=move.length();
+      if(segLen>0){
+        const ray=new THREE.Ray(prev,p.dir.clone().normalize());
+        for(const w of walls){
+          const box=new THREE.Box3().setFromObject(w).expandByScalar(.08);
+          const pt=new THREE.Vector3();
+          if(ray.intersectBox(box,pt)&&pt.distanceTo(prev)<=segLen+.08){hitWall=true;hitPos.copy(pt);break}
+        }
+      }
+      if(hitWall){
+        createSpark(hitPos);
+        scene.remove(p.mesh);
+        projectiles.splice(i,1);
+        continue;
+      }
+
+      // Enemy friendly fire: enemy bullets can accidentally hit any other living enemy first
+      let hitEnemy=null, hitEnemyDist=Infinity;
+      for(const e of enemies){
+        if(e.dead||e===p.owner)continue;
+        const center=e.group.position.clone().add(new THREE.Vector3(0,1.0,0));
+        const radius=e.type==='Bill'?0.9:0.7;
+        const closest=prev.clone().add(p.dir.clone().multiplyScalar(Math.max(0,Math.min(segLen,center.clone().sub(prev).dot(p.dir)))));
+        const d=center.distanceTo(closest);
+        const along=closest.distanceTo(prev);
+        if(d<radius&&along<hitEnemyDist){hitEnemy=e;hitEnemyDist=along}
+      }
+      if(hitEnemy){
+        hitEnemy.hp-=p.dmg;
+        createSpark(p.mesh.position.clone());
+        if(hitEnemy.hp<=0&&!hitEnemy.dead)killEnemy(hitEnemy,false,false);
+        scene.remove(p.mesh);
+        projectiles.splice(i,1);
+        continue;
+      }
 
       // Check if hit player
       const distToPlayer=p.mesh.position.distanceTo(camera.position);
@@ -1640,13 +1679,7 @@ function animate(){
         continue;
       }
 
-      // Check if hit wall
-      let hitWall=false;
-      for(const w of walls){
-        const box=new THREE.Box3().setFromObject(w);
-        if(box.containsPoint(p.mesh.position)){hitWall=true;break}
-      }
-      if(hitWall||p.age>p.maxAge){
+      if(p.age>p.maxAge){
         createSpark(p.mesh.position.clone());
         scene.remove(p.mesh);
         projectiles.splice(i,1);
