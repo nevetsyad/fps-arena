@@ -199,7 +199,7 @@ let hp=MAXHP, ammo=30, reserve=90, score=0, wave=1, alive=true, playing=false;
 let enemies=[], pickups=[], projectiles=[], fireCooldown=0, reloading=false, reloadTimer=0, reloadDuration=1.5;
 let kidneyPickups=[], kidneysCollected=0, totalKidneys=7, kidneysDone=false, kidneyFixTimer=0;
 let kidneyFixTimerStart=0;
-let billRef=null, kidneyFixParticles=[], _waveCountdownStart=0, _waveCountdownWave=0, _waveTransitionTimer=null;
+let billRef=null, kidneyFixParticles=[], _cureTransitionTimer=null, _waveCountdownStart=0, _waveCountdownWave=0, _waveTransitionTimer=null;
 let yaw=0, pitch=0, velocity=new THREE.Vector3();
 let knifeCooldown=0;const KNIFE_CD=0.5,KNIFE_RANGE=2.5,KNIFE_DMG_MIN=75,KNIFE_DMG_MAX=100;
 let currentWeapon='gun';
@@ -1303,7 +1303,7 @@ function restart(){
   // Remove kidney pickups and particles
   kidneyPickups.forEach(k=>{if(!k.collected)scene.remove(k.mesh)});kidneyPickups=[];
   kidneyFixParticles.forEach(p=>scene.remove(p.mesh));kidneyFixParticles=[];
-  kidneysCollected=0;kidneysDone=false;kidneyFixTimer=0;kidneyFixTimerStart=0;billRef=null;_waveCountdownStart=0;_waveCountdownWave=0;if(_waveTransitionTimer){clearTimeout(_waveTransitionTimer);_waveTransitionTimer=null}
+  kidneysCollected=0;kidneysDone=false;kidneyFixTimer=0;kidneyFixTimerStart=0;billRef=null;if(_cureTransitionTimer){clearTimeout(_cureTransitionTimer);_cureTransitionTimer=null}_waveCountdownStart=0;_waveCountdownWave=0;if(_waveTransitionTimer){clearTimeout(_waveTransitionTimer);_waveTransitionTimer=null}
   if(waveSpawnTimer){clearTimeout(waveSpawnTimer);waveSpawnTimer=null}
 
   // Hide ALL overlays explicitly to prevent stuck UI
@@ -1357,6 +1357,57 @@ function collide(pos,r){
       if(ox<oz)pos.x+=ox*Math.sign(dx);else pos.z+=oz*Math.sign(dz);
     }
   }
+}
+
+function completeCureAndStartWaveCountdown(){
+  if(!kidneysDone)return;
+  kidneyFixTimerStart=0;
+  kidneysDone=false;
+  _cureTransitionTimer=null;
+  console.log('[cure] cure timer complete! wave:', wave, 'MAX_WAVES:', MAX_WAVES);
+  if(wave>=MAX_WAVES){
+    alive=false;
+    document.exitPointerLock();
+    document.getElementById('kidney-counter').style.display='none';
+    document.getElementById('success-stats').textContent='Score: '+score+' | Waves: '+wave+'/'+MAX_WAVES;
+    document.getElementById('mission-success').style.display='flex';startConfetti();
+    return;
+  }
+
+  enemies.forEach(e=>{try{scene.remove(e.group)}catch(er){}});enemies=[];
+  projectiles.forEach(p=>{try{scene.remove(p.mesh)}catch(er){}});projectiles=[];
+  pickups.forEach(p=>{try{scene.remove(p.mesh)}catch(er){}});pickups=[];
+  playerTracers.forEach(t=>{try{scene.remove(t.mesh)}catch(er){}});playerTracers=[];
+  kidneyPickups.forEach(k=>{if(!k.collected)try{scene.remove(k.mesh)}catch(er){}});kidneyPickups=[];
+  kidneyFixParticles.forEach(p=>{try{scene.remove(p.mesh)}catch(er){}});kidneyFixParticles=[];
+  billRef=null;
+  kidneysCollected=0;
+  hp=Math.min(MAXHP, hp+30);
+  reserve+=30;
+  score+=500;
+  wave++;
+  updateHUD();
+
+  _waveCountdownStart=performance.now();
+  _waveCountdownWave=wave;
+  const targetWave=wave;
+  const wi=document.getElementById('wave-info');
+  if(wi){wi.textContent='✦ WAVE '+(wave-1)+' COMPLETE ✦ — Wave '+wave+' in 5...';wi.style.opacity=1;}
+  addKillFeed('Wave '+(wave-1)+' complete! Wave '+wave+' in 5 seconds...');
+  if(_waveTransitionTimer)clearTimeout(_waveTransitionTimer);
+  _waveTransitionTimer=setTimeout(()=>{
+    if(!alive||wave!==targetWave||_waveCountdownWave!==targetWave)return;
+    _waveTransitionTimer=null;
+    _waveCountdownStart=0;
+    _waveCountdownWave=0;
+    const wi2=document.getElementById('wave-info');
+    if(wi2)wi2.style.opacity=0;
+    const ec=document.getElementById('enemy-counter');
+    if(ec)ec.textContent='';
+    console.log('[countdown] Spawning wave',wave);
+    try{spawnWave()}catch(e){console.error('[countdown] spawnWave failed:',e)}
+  },5000);
+  console.log('[cure] 5s countdown started for wave',wave);
 }
 
 // --- HUD ---
@@ -1643,6 +1694,8 @@ function animate(){
       if(distSq<36){ // 6 unit radius
         kidneysDone=true;
         kidneyFixTimerStart=performance.now();
+        if(_cureTransitionTimer)clearTimeout(_cureTransitionTimer);
+        _cureTransitionTimer=setTimeout(completeCureAndStartWaveCountdown,3000);
         console.log('[cure] Kidney fix started! Timer: 3000ms, Wave:', wave, 'Dist:', Math.sqrt(distSq).toFixed(1));
         addKillFeed('⚠ Bill\'s kidneys are being fixed!');
         // Green glow on Bill
@@ -1680,67 +1733,16 @@ function animate(){
     }
   }
 
-  // === WAVE TRANSITION — runs outside playing check, uses wall-clock time ===
+  // === CURE COUNTDOWN UI — actual handoff is timer-driven from cure start ===
   if(kidneysDone&&kidneyFixTimerStart>0){
     const elapsed=performance.now()-kidneyFixTimerStart;
     if(billRef&&billRef.body){
       const pulse=Math.sin(performance.now()*0.015)*0.5+1;
       billRef.body.material.emissiveIntensity=pulse;
     }
-    // Show countdown during cure animation (first 3s)
-    if(elapsed<3000){
-      const remaining=Math.ceil((3000-elapsed)/1000);
-      const ec=document.getElementById('enemy-counter');
-      if(ec)ec.textContent='Curing Bill... '+remaining+'s';
-    }
-    if(elapsed>=3000){
-      kidneyFixTimerStart=0;
-      kidneysDone=false;
-      console.log('[cure] 3s cure done! wave:', wave, 'MAX_WAVES:', MAX_WAVES);
-      if(wave>=MAX_WAVES){
-        alive=false;
-        document.exitPointerLock();
-        document.getElementById('kidney-counter').style.display='none';
-        document.getElementById('success-stats').textContent='Score: '+score+' | Waves: '+wave+'/'+MAX_WAVES;
-        document.getElementById('mission-success').style.display='flex';startConfetti();
-      } else {
-        // Clean up current wave
-        enemies.forEach(e=>{try{scene.remove(e.group)}catch(er){}});enemies=[];
-        projectiles.forEach(p=>{try{scene.remove(p.mesh)}catch(er){}});projectiles=[];
-        pickups.forEach(p=>{try{scene.remove(p.mesh)}catch(er){}});pickups=[];
-        playerTracers.forEach(t=>{try{scene.remove(t.mesh)}catch(er){}});playerTracers=[];
-        kidneyPickups.forEach(k=>{if(!k.collected)try{scene.remove(k.mesh)}catch(er){}});kidneyPickups=[];
-        kidneyFixParticles.forEach(p=>{try{scene.remove(p.mesh)}catch(er){}});kidneyFixParticles=[];
-        billRef=null;
-        kidneysCollected=0;
-        hp=Math.min(MAXHP, hp+30);
-        reserve+=30;
-        score+=500;
-        wave++;
-        updateHUD();
-        // Start 5-second countdown to next wave
-        _waveCountdownStart=performance.now();
-        _waveCountdownWave=wave;
-        const targetWave=wave;
-        const wi=document.getElementById('wave-info');
-        wi.textContent='✦ WAVE '+(wave-1)+' COMPLETE ✦ — Wave '+wave+' in 5...';
-        wi.style.opacity=1;
-        addKillFeed('Wave '+(wave-1)+' complete! Wave '+wave+' in 5 seconds...');
-        if(_waveTransitionTimer)clearTimeout(_waveTransitionTimer);
-        _waveTransitionTimer=setTimeout(()=>{
-          if(!alive||wave!==targetWave||_waveCountdownWave!==targetWave)return;
-          _waveCountdownStart=0;
-          _waveCountdownWave=0;
-          const wi2=document.getElementById('wave-info');
-          if(wi2)wi2.style.opacity=0;
-          const ec=document.getElementById('enemy-counter');
-          if(ec)ec.textContent='';
-          console.log('[countdown] Spawning wave',wave);
-          try{spawnWave()}catch(e){console.error('[countdown] spawnWave failed:',e)}
-        },5000);
-        console.log('[cure] 5s countdown started for wave',wave);
-      }
-    }
+    const remaining=Math.max(1,Math.ceil((3000-elapsed)/1000));
+    const ec=document.getElementById('enemy-counter');
+    if(ec)ec.textContent='Curing Bill... '+remaining+'s';
   }
 
   // === WAVE COUNTDOWN UI ===
