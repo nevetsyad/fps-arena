@@ -533,14 +533,16 @@ function spawnEnemy(speedMult){
     // Bill's katana — deliberately huge/bright so it reads clearly in first-person chaos
     const swordGroup=new THREE.Group();
     swordGroup.name='BillKatana';
-    swordGroup.position.set(bw/2+.35*sc,body.position.y+.05*sc,-.28*sc);
-    swordGroup.rotation.set(-0.75,0,0.22);
+    // Enemy front is local +Z because the group y-rotates toward the player with atan2(dx,dz).
+    // Keep the katana in front of Bill instead of clipping behind his back.
+    swordGroup.position.set(bw/2+.35*sc,body.position.y+.05*sc,bd/2+.28*sc);
+    swordGroup.rotation.set(0.75,0,0.22);
     const handle=new THREE.Mesh(new THREE.BoxGeometry(.10*sc,.10*sc,.46*sc),new THREE.MeshStandardMaterial({color:0x553311,roughness:.5}));
     handle.position.set(0,0,0);swordGroup.add(handle);
     const guard=new THREE.Mesh(new THREE.BoxGeometry(.52*sc,.08*sc,.10*sc),new THREE.MeshStandardMaterial({color:0xffcc00,emissive:0x664400,emissiveIntensity:.25,metalness:.6,roughness:.25}));
-    guard.position.set(0,0,-.28*sc);swordGroup.add(guard);
+    guard.position.set(0,0,.28*sc);swordGroup.add(guard);
     const blade=new THREE.Mesh(new THREE.BoxGeometry(.075*sc,.075*sc,2.25*sc),new THREE.MeshStandardMaterial({color:0xffffff,emissive:0x77aaff,emissiveIntensity:.85,metalness:.9,roughness:.08}));
-    blade.position.set(0,0,-1.45*sc);swordGroup.add(blade);
+    blade.position.set(0,0,1.45*sc);swordGroup.add(blade);
     group.add(swordGroup);
     katana=swordGroup;
   } else {
@@ -1443,7 +1445,7 @@ function completeCureAndStartWaveCountdown(source='unknown'){
 function updateHUD(){
   document.getElementById('hpVal').textContent=Math.max(0,hp|0);
   document.getElementById('scoreVal').textContent=score;
-  document.getElementById('waveVal').textContent=wave+'/3';
+  document.getElementById('waveVal').textContent=wave+'/'+MAX_WAVES;
   if(currentWeapon==='gun'){
     document.getElementById('ammoVal').textContent=(reloading?'RELOADING':ammo)+' / '+reserve;
   }else{
@@ -1809,16 +1811,22 @@ function animate(){
     _emptyWaveTimer=0;
   }
 
-  // === CURE COUNTDOWN UI — particle completion triggers handoff; timer is backup ===
+  // === CURE COUNTDOWN + GUARANTEED HANDOFF ===
+  // The setTimeout above is nice when it fires, but the frame loop is the source of truth.
+  // If the UI reaches zero, complete the cure immediately instead of sitting at "1s" forever.
   if(kidneysDone&&kidneyFixTimerStart>0){
     const elapsed=performance.now()-kidneyFixTimerStart;
     if(billRef&&billRef.body){
       const pulse=Math.sin(performance.now()*0.015)*0.5+1;
       billRef.body.material.emissiveIntensity=pulse;
     }
-    const remaining=Math.max(1,Math.ceil((3000-elapsed)/1000));
-    const ec=document.getElementById('enemy-counter');
-    if(ec)ec.textContent='Curing Bill... '+remaining+'s';
+    if(elapsed>=3000){
+      completeCureAndStartWaveCountdown('frame-cure-complete');
+    }else{
+      const remaining=Math.max(1,Math.ceil((3000-elapsed)/1000));
+      const ec=document.getElementById('enemy-counter');
+      if(ec)ec.textContent='Curing Bill... '+remaining+'s';
+    }
   }
 
   // === WAVE COUNTDOWN UI ===
