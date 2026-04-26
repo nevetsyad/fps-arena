@@ -199,7 +199,7 @@ let hp=MAXHP, ammo=30, reserve=90, score=0, wave=1, alive=true, playing=false;
 let enemies=[], pickups=[], projectiles=[], fireCooldown=0, reloading=false, reloadTimer=0, reloadDuration=1.5;
 let kidneyPickups=[], kidneysCollected=0, totalKidneys=7, kidneysDone=false, kidneyFixTimer=0;
 let kidneyFixTimerStart=0;
-let billRef=null, kidneyFixParticles=[], _waveCountdownStart=0, _waveCountdownWave=0;
+let billRef=null, kidneyFixParticles=[], _waveCountdownStart=0, _waveCountdownWave=0, _waveTransitionTimer=null;
 let yaw=0, pitch=0, velocity=new THREE.Vector3();
 let knifeCooldown=0;const KNIFE_CD=0.5,KNIFE_RANGE=2.5,KNIFE_DMG_MIN=75,KNIFE_DMG_MAX=100;
 let currentWeapon='gun';
@@ -1303,7 +1303,7 @@ function restart(){
   // Remove kidney pickups and particles
   kidneyPickups.forEach(k=>{if(!k.collected)scene.remove(k.mesh)});kidneyPickups=[];
   kidneyFixParticles.forEach(p=>scene.remove(p.mesh));kidneyFixParticles=[];
-  kidneysCollected=0;kidneysDone=false;kidneyFixTimer=0;kidneyFixTimerStart=0;billRef=null;_waveCountdownStart=0;_waveCountdownWave=0;
+  kidneysCollected=0;kidneysDone=false;kidneyFixTimer=0;kidneyFixTimerStart=0;billRef=null;_waveCountdownStart=0;_waveCountdownWave=0;if(_waveTransitionTimer){clearTimeout(_waveTransitionTimer);_waveTransitionTimer=null}
   if(waveSpawnTimer){clearTimeout(waveSpawnTimer);waveSpawnTimer=null}
 
   // Hide ALL overlays explicitly to prevent stuck UI
@@ -1721,16 +1721,29 @@ function animate(){
         // Start 5-second countdown to next wave
         _waveCountdownStart=performance.now();
         _waveCountdownWave=wave;
+        const targetWave=wave;
         const wi=document.getElementById('wave-info');
         wi.textContent='✦ WAVE '+(wave-1)+' COMPLETE ✦ — Wave '+wave+' in 5...';
         wi.style.opacity=1;
         addKillFeed('Wave '+(wave-1)+' complete! Wave '+wave+' in 5 seconds...');
+        if(_waveTransitionTimer)clearTimeout(_waveTransitionTimer);
+        _waveTransitionTimer=setTimeout(()=>{
+          if(!alive||wave!==targetWave||_waveCountdownWave!==targetWave)return;
+          _waveCountdownStart=0;
+          _waveCountdownWave=0;
+          const wi2=document.getElementById('wave-info');
+          if(wi2)wi2.style.opacity=0;
+          const ec=document.getElementById('enemy-counter');
+          if(ec)ec.textContent='';
+          console.log('[countdown] Spawning wave',wave);
+          try{spawnWave()}catch(e){console.error('[countdown] spawnWave failed:',e)}
+        },5000);
         console.log('[cure] 5s countdown started for wave',wave);
       }
     }
   }
 
-  // === WAVE COUNTDOWN — auto-spawns next wave after 5 seconds ===
+  // === WAVE COUNTDOWN UI ===
   if(_waveCountdownStart>0&&wave===_waveCountdownWave){
     const countElapsed=performance.now()-_waveCountdownStart;
     const remaining=Math.ceil((5000-countElapsed)/1000);
@@ -1739,14 +1752,6 @@ function animate(){
       if(wi)wi.textContent='✦ WAVE '+(wave-1)+' COMPLETE ✦ — Wave '+wave+' in '+remaining+'...';
       const ec=document.getElementById('enemy-counter');
       if(ec)ec.textContent='Next wave in '+remaining+'s';
-    } else {
-      _waveCountdownStart=0;
-      _waveCountdownWave=0;
-      if(wi)wi.style.opacity=0;
-      const ec=document.getElementById('enemy-counter');
-      if(ec)ec.textContent='';
-      console.log('[countdown] Spawning wave',wave);
-      try{spawnWave()}catch(e){console.error('[countdown] spawnWave failed:',e)}
     }
   }
 
