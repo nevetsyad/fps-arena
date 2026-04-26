@@ -30,7 +30,7 @@ canvas{display:block}
 #restartBtn{margin-top:24px;padding:14px 40px;font-size:22px;font-family:'Courier New',monospace;background:#f44;color:#fff;border:none;cursor:pointer;text-transform:uppercase;letter-spacing:3px;transition:background .2s}
 #restartBtn:hover{background:#f77}
 #wave-info{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:#ff0;font-size:36px;z-index:10;pointer-events:none;opacity:0;transition:opacity .5s;text-shadow:0 0 20px #ff0}
-#wave-click-prompt{position:fixed;top:calc(50% + 50px);left:50%;transform:translate(-50%,-50%);color:#fff;font-size:20px;z-index:10;pointer-events:none;opacity:0;transition:opacity .5s;text-shadow:0 0 10px rgba(255,255,255,.8);animation:prompt-pulse 1.5s ease-in-out infinite}
+#wave-click-prompt{position:fixed;top:calc(50% + 50px);left:50%;transform:translate(-50%,-50%);color:#fff;font-size:20px;z-index:110;pointer-events:none;opacity:0;transition:opacity .5s;text-shadow:0 0 10px rgba(255,255,255,.8);animation:prompt-pulse 1.5s ease-in-out infinite}
 @keyframes prompt-pulse{0%,100%{opacity:.4}50%{opacity:1}}
 #enemy-counter{position:fixed;top:16px;left:16px;z-index:10;pointer-events:none;color:#f88;font-size:14px}
 #settings-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.92);border:1px solid #555;padding:30px 40px;z-index:300;display:none;color:#ccc;font-family:'Courier New',monospace;min-width:320px}
@@ -786,8 +786,17 @@ const blocker=document.getElementById('blocker');
 document.getElementById('play-btn').addEventListener('click',()=>{
   if(!alive||settingsOpen)return;
   ensureAudio();
-  // Safety net: if no enemies exist (e.g. restart failed to spawn), spawn now
-  if(enemies.length===0&&wave>=1){
+  // Handle wave start on click
+  if(_waitingForWaveStart){
+    _waitingForWaveStart=false;
+    _waveSpawnPending=false;
+    const prompt=document.getElementById('wave-click-prompt');
+    prompt.style.opacity='0';
+    const wi2=document.getElementById('wave-info');
+    wi2.style.opacity=0;
+    console.log('[play-btn] Starting wave',wave);
+    try{spawnWave()}catch(e){console.error('[play-btn] spawnWave failed:',e)}
+  } else if(enemies.length===0&&wave>=1){
     console.log('[play-btn] No enemies found — spawning wave',wave);
     spawnWave();
   }
