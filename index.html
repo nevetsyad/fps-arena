@@ -1414,15 +1414,21 @@ function completeCureAndStartWaveCountdown(source='unknown'){
   wave++;
   updateHUD();
 
-  _waveCountdownStart=performance.now();
-  _waveCountdownWave=wave;
-  const targetWave=wave;
   const wi=document.getElementById('wave-info');
-  if(wi){wi.textContent='✦ WAVE '+(wave-1)+' COMPLETE ✦ — Wave '+wave+' in 5...';wi.style.opacity=1;}
-  addKillFeed('Wave '+(wave-1)+' complete! Wave '+wave+' in 5 seconds...');
-  if(_waveTransitionTimer)clearTimeout(_waveTransitionTimer);
-  _waveTransitionTimer=setTimeout(()=>spawnNextWaveFromCountdown('timer'),5000);
-  console.log('[cure] 5s countdown started for wave',wave);
+  if(wi){wi.textContent='✦ WAVE '+(wave-1)+' COMPLETE ✦ — WAVE '+wave+' STARTED';wi.style.opacity=1;setTimeout(()=>wi.style.opacity=0,2500);}
+  addKillFeed('Wave '+(wave-1)+' complete! Wave '+wave+' started!');
+  console.log('[cure] particles/timer complete — spawning wave',wave);
+  try{
+    spawnWave();
+    if(enemies.length===0){
+      console.warn('[cure] spawnWave produced 0 enemies; retrying wave',wave);
+      spawnWave();
+    }
+    console.log('[cure] Wave spawn complete. enemies:',enemies.length,'kidneys:',kidneyPickups.length);
+  }catch(e){
+    console.error('[cure] spawnWave failed:',e);
+    addKillFeed('⚠ Wave spawn failed — check console');
+  }
 }
 
 // --- HUD ---
