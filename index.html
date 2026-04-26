@@ -169,16 +169,9 @@ function ensureAudio(){
 
 function playSound(type){
   ensureAudio();
-  if(!audioCtx){return}
-  // If still suspended, schedule sound slightly in the future when resume should complete
-  if(audioCtx.state==='suspended'){
-    console.log('[audio] Context still suspended, scheduling sound for 100ms later');
-    setTimeout(()=>playSound(type),100);
-    return;
-  }
+  if(!audioCtx){console.warn('[audio] playSound("'+type+'") skipped — no audioCtx');return}
   const ctx=audioCtx;const g=ctx.createGain();g.connect(ctx.destination);const now=ctx.currentTime;
   const vol=soundVolume;
-  if(vol<=0)return; // Skip silent sounds
   if(type==='gunshot'){
     // Short noise burst
     const buf=ctx.createBuffer(1,ctx.sampleRate*0.08,ctx.sampleRate);
