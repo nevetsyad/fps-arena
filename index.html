@@ -199,7 +199,7 @@ let hp=MAXHP, ammo=30, reserve=90, score=0, wave=1, alive=true, playing=false;
 let enemies=[], pickups=[], projectiles=[], fireCooldown=0, reloading=false, reloadTimer=0, reloadDuration=1.5;
 let kidneyPickups=[], kidneysCollected=0, totalKidneys=7, kidneysDone=false, kidneyFixTimer=0;
 let kidneyFixTimerStart=0;
-let billRef=null, kidneyFixParticles=[], _cureParticlesTriggerPending=false, _cureTransitionTimer=null, _waveCountdownStart=0, _waveCountdownWave=0, _waveTransitionTimer=null, _emptyWaveTimer=0;
+let billRef=null, kidneyFixParticles=[], _cureParticlesTriggerPending=false, _cureTransitionTimer=null, _waveCountdownStart=0, _waveCountdownWave=0, _waveTransitionTimer=null, _emptyWaveTimer=0, _cureHandoffStarted=false;
 let yaw=0, pitch=0, velocity=new THREE.Vector3();
 let knifeCooldown=0;const KNIFE_CD=0.5,KNIFE_RANGE=2.5,KNIFE_DMG_MIN=75,KNIFE_DMG_MAX=100;
 let currentWeapon='gun';
@@ -1309,7 +1309,7 @@ function restart(){
   // Remove kidney pickups and particles
   kidneyPickups.forEach(k=>{if(!k.collected)scene.remove(k.mesh)});kidneyPickups=[];
   kidneyFixParticles.forEach(p=>scene.remove(p.mesh));kidneyFixParticles=[];
-  kidneysCollected=0;kidneysDone=false;kidneyFixTimer=0;kidneyFixTimerStart=0;billRef=null;_cureParticlesTriggerPending=false;if(_cureTransitionTimer){clearTimeout(_cureTransitionTimer);_cureTransitionTimer=null}_waveCountdownStart=0;_waveCountdownWave=0;if(_waveTransitionTimer){clearTimeout(_waveTransitionTimer);_waveTransitionTimer=null}_emptyWaveTimer=0;
+  kidneysCollected=0;kidneysDone=false;kidneyFixTimer=0;kidneyFixTimerStart=0;billRef=null;_cureParticlesTriggerPending=false;_cureHandoffStarted=false;if(_cureTransitionTimer){clearTimeout(_cureTransitionTimer);_cureTransitionTimer=null}_waveCountdownStart=0;_waveCountdownWave=0;if(_waveTransitionTimer){clearTimeout(_waveTransitionTimer);_waveTransitionTimer=null}_emptyWaveTimer=0;
   if(waveSpawnTimer){clearTimeout(waveSpawnTimer);waveSpawnTimer=null}
 
   // Hide ALL overlays explicitly to prevent stuck UI
@@ -1391,12 +1391,16 @@ function spawnNextWaveFromCountdown(source){
 }
 
 function completeCureAndStartWaveCountdown(source='unknown'){
-  if(!kidneysDone)return;
+  if(_cureHandoffStarted)return;
+  _cureHandoffStarted=true;
   kidneyFixTimerStart=0;
   kidneysDone=false;
   _cureParticlesTriggerPending=false;
   if(_cureTransitionTimer){clearTimeout(_cureTransitionTimer);_cureTransitionTimer=null}
-  console.log('[cure] cure complete via',source,'wave:', wave, 'MAX_WAVES:', MAX_WAVES);
+  if(_waveTransitionTimer){clearTimeout(_waveTransitionTimer);_waveTransitionTimer=null}
+  _waveCountdownStart=0;_waveCountdownWave=0;_emptyWaveTimer=0;
+  console.log('[cure] direct handoff via',source,'current wave:',wave,'MAX_WAVES:',MAX_WAVES);
+
   if(wave>=MAX_WAVES){
     alive=false;
     document.exitPointerLock();
@@ -1406,11 +1410,10 @@ function completeCureAndStartWaveCountdown(source='unknown'){
     return;
   }
 
-  enemies.forEach(e=>{try{scene.remove(e.group)}catch(er){}});enemies=[];
+  // Clear transient objects only. spawnWave() owns enemy/kidney reset.
   projectiles.forEach(p=>{try{scene.remove(p.mesh)}catch(er){}});projectiles=[];
   pickups.forEach(p=>{try{scene.remove(p.mesh)}catch(er){}});pickups=[];
   playerTracers.forEach(t=>{try{scene.remove(t.mesh)}catch(er){}});playerTracers=[];
-  kidneyPickups.forEach(k=>{if(!k.collected)try{scene.remove(k.mesh)}catch(er){}});kidneyPickups=[];
   kidneyFixParticles.forEach(p=>{try{scene.remove(p.mesh)}catch(er){}});kidneyFixParticles=[];
   billRef=null;
   kidneysCollected=0;
@@ -1418,21 +1421,20 @@ function completeCureAndStartWaveCountdown(source='unknown'){
   reserve+=30;
   score+=500;
   wave++;
-  updateHUD();
 
   const wi=document.getElementById('wave-info');
-  if(wi){wi.textContent='✦ WAVE '+(wave-1)+' COMPLETE ✦ — WAVE '+wave+' STARTED';wi.style.opacity=1;setTimeout(()=>wi.style.opacity=0,2500);}
-  addKillFeed('Wave '+(wave-1)+' complete! Wave '+wave+' started!');
-  console.log('[cure] particles/timer complete — spawning wave',wave);
+  if(wi){wi.textContent='✦ WAVE '+(wave-1)+' COMPLETE ✦ — WAVE '+wave+' STARTING';wi.style.opacity=1;setTimeout(()=>wi.style.opacity=0,2500);}
+  addKillFeed('Wave '+(wave-1)+' complete! Wave '+wave+' starting!');
+  console.log('[cure] direct spawning wave',wave);
   try{
     spawnWave();
     if(enemies.length===0){
-      console.warn('[cure] spawnWave produced 0 enemies; retrying wave',wave);
+      console.warn('[cure] direct spawn produced 0 enemies; retrying wave',wave);
       spawnWave();
     }
-    console.log('[cure] Wave spawn complete. enemies:',enemies.length,'kidneys:',kidneyPickups.length);
+    console.log('[cure] direct spawn complete. enemies:',enemies.length,'kidneys:',kidneyPickups.length);
   }catch(e){
-    console.error('[cure] spawnWave failed:',e);
+    console.error('[cure] direct spawn failed:',e);
     addKillFeed('⚠ Wave spawn failed — check console');
   }
 }
@@ -1754,10 +1756,11 @@ function animate(){
       if(distSq<36){ // 6 unit radius
         kidneysDone=true;
         kidneyFixTimerStart=performance.now();
-        _cureParticlesTriggerPending=true;
+        _cureParticlesTriggerPending=false;
+        _cureHandoffStarted=false;
         if(_cureTransitionTimer)clearTimeout(_cureTransitionTimer);
-        _cureTransitionTimer=setTimeout(()=>completeCureAndStartWaveCountdown('timer-backup'),3000);
-        console.log('[cure] Kidney fix started! Particle trigger armed. Backup timer: 3000ms, Wave:', wave, 'Dist:', Math.sqrt(distSq).toFixed(1));
+        _cureTransitionTimer=setTimeout(()=>completeCureAndStartWaveCountdown('direct-cure-timer'),2500);
+        console.log('[cure] Kidney fix started! Direct wave handoff scheduled: 2500ms, Wave:', wave, 'Dist:', Math.sqrt(distSq).toFixed(1));
         addKillFeed('⚠ Bill\'s kidneys are being fixed!');
         // Green glow on Bill
         if(billRef.kidneys){
@@ -1791,10 +1794,6 @@ function animate(){
       p.mesh.material.opacity=Math.max(0,1-p.age/2);
       p.mesh.material.transparent=true;
       if(p.age>2){scene.remove(p.mesh);kidneyFixParticles.splice(i,1)}
-    }
-    if(_cureParticlesTriggerPending&&kidneysDone&&kidneyFixParticles.length===0){
-      console.log('[cure] particles finished — starting wave handoff');
-      completeCureAndStartWaveCountdown('particles-finished');
     }
   }
 
