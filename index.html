@@ -1359,6 +1359,31 @@ function collide(pos,r){
   }
 }
 
+function spawnNextWaveFromCountdown(source){
+  if(_waveCountdownStart<=0)return;
+  const targetWave=_waveCountdownWave;
+  if(!alive||wave!==targetWave)return;
+  _waveCountdownStart=0;
+  _waveCountdownWave=0;
+  if(_waveTransitionTimer){clearTimeout(_waveTransitionTimer);_waveTransitionTimer=null}
+  const wi=document.getElementById('wave-info');
+  if(wi)wi.style.opacity=0;
+  const ec=document.getElementById('enemy-counter');
+  if(ec)ec.textContent='';
+  console.log('[countdown] Spawning wave',wave,'source:',source);
+  try{
+    spawnWave();
+    if(enemies.length===0){
+      console.warn('[countdown] spawnWave produced 0 enemies; retrying wave',wave);
+      spawnWave();
+    }
+    console.log('[countdown] Wave spawn complete. enemies:',enemies.length,'kidneys:',kidneyPickups.length);
+  }catch(e){
+    console.error('[countdown] spawnWave failed:',e);
+    addKillFeed('⚠ Wave spawn failed — check console');
+  }
+}
+
 function completeCureAndStartWaveCountdown(){
   if(!kidneysDone)return;
   kidneyFixTimerStart=0;
@@ -1395,18 +1420,7 @@ function completeCureAndStartWaveCountdown(){
   if(wi){wi.textContent='✦ WAVE '+(wave-1)+' COMPLETE ✦ — Wave '+wave+' in 5...';wi.style.opacity=1;}
   addKillFeed('Wave '+(wave-1)+' complete! Wave '+wave+' in 5 seconds...');
   if(_waveTransitionTimer)clearTimeout(_waveTransitionTimer);
-  _waveTransitionTimer=setTimeout(()=>{
-    if(!alive||wave!==targetWave||_waveCountdownWave!==targetWave)return;
-    _waveTransitionTimer=null;
-    _waveCountdownStart=0;
-    _waveCountdownWave=0;
-    const wi2=document.getElementById('wave-info');
-    if(wi2)wi2.style.opacity=0;
-    const ec=document.getElementById('enemy-counter');
-    if(ec)ec.textContent='';
-    console.log('[countdown] Spawning wave',wave);
-    try{spawnWave()}catch(e){console.error('[countdown] spawnWave failed:',e)}
-  },5000);
+  _waveTransitionTimer=setTimeout(()=>spawnNextWaveFromCountdown('timer'),5000);
   console.log('[cure] 5s countdown started for wave',wave);
 }
 
@@ -1754,6 +1768,8 @@ function animate(){
       if(wi)wi.textContent='✦ WAVE '+(wave-1)+' COMPLETE ✦ — Wave '+wave+' in '+remaining+'...';
       const ec=document.getElementById('enemy-counter');
       if(ec)ec.textContent='Next wave in '+remaining+'s';
+    } else {
+      spawnNextWaveFromCountdown('frame-fallback');
     }
   }
 
