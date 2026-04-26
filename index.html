@@ -530,12 +530,18 @@ function spawnEnemy(speedMult){
   // Gun or katana in right hand
   let katana=null;
   if(type.melee){
-    // Katana handle
-    const handle=new THREE.Mesh(new THREE.BoxGeometry(.06,.06,.25),new THREE.MeshStandardMaterial({color:0x553311}));
-    handle.position.set(0,0,-.12);ra.add(handle);
-    // Katana blade
-    const blade=new THREE.Mesh(new THREE.BoxGeometry(.04,.04,1.0),new THREE.MeshStandardMaterial({color:0xcccccc,metalness:.8,roughness:.2}));
-    blade.position.set(0,0,-.75);ra.add(blade);
+    // Bill's katana — oversized/bright so it reads clearly in first-person chaos
+    const swordGroup=new THREE.Group();
+    swordGroup.name='BillKatana';
+    swordGroup.position.set(0,-.05,-.22);
+    swordGroup.rotation.x=-0.35;
+    const handle=new THREE.Mesh(new THREE.BoxGeometry(.08,.08,.34),new THREE.MeshStandardMaterial({color:0x553311,roughness:.5}));
+    handle.position.set(0,0,0);swordGroup.add(handle);
+    const guard=new THREE.Mesh(new THREE.BoxGeometry(.36,.06,.08),new THREE.MeshStandardMaterial({color:0xffcc00,metalness:.6,roughness:.25}));
+    guard.position.set(0,0,-.2);swordGroup.add(guard);
+    const blade=new THREE.Mesh(new THREE.BoxGeometry(.055,.055,1.45),new THREE.MeshStandardMaterial({color:0xeef6ff,emissive:0x6688ff,emissiveIntensity:.35,metalness:.9,roughness:.12}));
+    blade.position.set(0,0,-.95);swordGroup.add(blade);
+    ra.add(swordGroup);
     katana=ra;
   } else {
     const gun=new THREE.Mesh(new THREE.BoxGeometry(.08,.08,.4),new THREE.MeshStandardMaterial({color:0x444444}));
