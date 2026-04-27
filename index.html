@@ -783,7 +783,7 @@ document.addEventListener('pointerlockchange',()=>{
 
 
 // --- PLAYER BULLET TRACERS ---
-const playerTracers=[];
+let playerTracers=[];
 function spawnPlayerTracer(origin,dir){
   const speed=120;
   // Laser beam - thin red cylinder with glow
