@@ -1393,10 +1393,9 @@ function spawnNextWaveFromCountdown(source){
 }
 
 function completeCureAndStartWaveCountdown(source='unknown'){
-  if(_cureHandoffStarted)return;
-  _cureHandoffStarted=true;
+  // Unconditionally start next wave when cure countdown ends
   kidneyFixTimerStart=0;
-  kidneysDone=false;
+  _cureHandoffStarted=true;
   _cureParticlesTriggerPending=false;
   if(_cureTransitionTimer){clearTimeout(_cureTransitionTimer);_cureTransitionTimer=null}
   if(_waveTransitionTimer){clearTimeout(_waveTransitionTimer);_waveTransitionTimer=null}
@@ -1419,6 +1418,7 @@ function completeCureAndStartWaveCountdown(source='unknown'){
   kidneyFixParticles.forEach(p=>{try{scene.remove(p.mesh)}catch(er){}});kidneyFixParticles=[];
   billRef=null;
   kidneysCollected=0;
+  kidneysDone=false;
   hp=Math.min(MAXHP, hp+30);
   reserve+=30;
   score+=500;
@@ -1427,18 +1427,8 @@ function completeCureAndStartWaveCountdown(source='unknown'){
   const wi=document.getElementById('wave-info');
   if(wi){wi.textContent='✦ WAVE '+(wave-1)+' COMPLETE ✦ — WAVE '+wave+' STARTING';wi.style.opacity=1;setTimeout(()=>wi.style.opacity=0,2500);}
   addKillFeed('Wave '+(wave-1)+' complete! Wave '+wave+' starting!');
-  console.log('[cure] direct spawning wave',wave);
-  try{
-    spawnWave();
-    if(enemies.length===0){
-      console.warn('[cure] direct spawn produced 0 enemies; retrying wave',wave);
-      spawnWave();
-    }
-    console.log('[cure] direct spawn complete. enemies:',enemies.length,'kidneys:',kidneyPickups.length);
-  }catch(e){
-    console.error('[cure] direct spawn failed:',e);
-    addKillFeed('⚠ Wave spawn failed — check console');
-  }
+  console.log('[cure] spawning wave',wave);
+  spawnWave();
 }
 
 // --- HUD ---
@@ -1761,8 +1751,8 @@ function animate(){
         _cureParticlesTriggerPending=false;
         _cureHandoffStarted=false;
         if(_cureTransitionTimer)clearTimeout(_cureTransitionTimer);
-        _cureTransitionTimer=setTimeout(()=>completeCureAndStartWaveCountdown('direct-cure-timer'),2500);
-        console.log('[cure] Kidney fix started! Direct wave handoff scheduled: 2500ms, Wave:', wave, 'Dist:', Math.sqrt(distSq).toFixed(1));
+        _cureTransitionTimer=null;
+        console.log('[cure] Kidney fix started! Wave:', wave, 'Dist:', Math.sqrt(distSq).toFixed(1));
         addKillFeed('⚠ Bill\'s kidneys are being fixed!');
         // Green glow on Bill
         if(billRef.kidneys){
@@ -1811,9 +1801,7 @@ function animate(){
     _emptyWaveTimer=0;
   }
 
-  // === CURE COUNTDOWN + GUARANTEED HANDOFF ===
-  // The setTimeout above is nice when it fires, but the frame loop is the source of truth.
-  // If the UI reaches zero, complete the cure immediately instead of sitting at "1s" forever.
+  // === CURE COUNTDOWN — single trigger point ===
   if(kidneysDone&&kidneyFixTimerStart>0){
     const elapsed=performance.now()-kidneyFixTimerStart;
     if(billRef&&billRef.body){
@@ -1821,7 +1809,8 @@ function animate(){
       billRef.body.material.emissiveIntensity=pulse;
     }
     if(elapsed>=3000){
-      completeCureAndStartWaveCountdown('frame-cure-complete');
+      // Countdown finished — start next wave now
+      completeCureAndStartWaveCountdown('cure-countdown-done');
     }else{
       const remaining=Math.max(1,Math.ceil((3000-elapsed)/1000));
       const ec=document.getElementById('enemy-counter');
