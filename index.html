@@ -642,10 +642,8 @@ const MAX_WAVES=3;
 function spawnWave(){
   console.log('[spawnWave] called. wave:', wave, 'MAX_WAVES:', MAX_WAVES, 'enemyTypeIndex:', enemyTypeIndex, 'enemies before:', enemies.length);
   // Difficulty scaling per wave
-  const baseCount=3+wave*2;
-  const extraEnemies=wave===1?0:wave===2?2:4;
-  const count=baseCount+extraEnemies;
-  const speedMult=wave===1?1:wave===2?1.15:1.3;
+  const count=3+wave;
+  const speedMult=wave===1?1:wave===2?1.05:1.1;
   // Clear any stale state before spawning
   enemies.forEach(e=>{try{scene.remove(e.group)}catch(er){}});
   enemies=[];
