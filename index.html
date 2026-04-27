@@ -1393,7 +1393,8 @@ function spawnNextWaveFromCountdown(source){
 }
 
 function completeCureAndStartWaveCountdown(source='unknown'){
-  // Unconditionally start next wave when cure countdown ends
+  // [v2] Unconditionally start next wave when cure countdown ends
+  console.log('[cure-v2] FIRED via',source,'wave:',wave,'MAX_WAVES:',MAX_WAVES,'enemies:',enemies.length,'kidneysDone:',kidneysDone,'_cureHandoffStarted:',_cureHandoffStarted);
   kidneyFixTimerStart=0;
   _cureHandoffStarted=true;
   _cureParticlesTriggerPending=false;
@@ -1815,6 +1816,17 @@ function animate(){
       const remaining=Math.max(1,Math.ceil((3000-elapsed)/1000));
       const ec=document.getElementById('enemy-counter');
       if(ec)ec.textContent='Curing Bill... '+remaining+'s';
+    }
+  }
+
+  // === BRUTE FORCE: Post-cure wave check ===
+  // If we just cured Bill (wave > 1, cure done) but have no enemies, force spawn
+  if(alive&&wave>1&&wave<=MAX_WAVES&&enemies.length===0&&!kidneysDone&&_cureHandoffStarted){
+    if(!window._postCureForce)_postCureForce=performance.now();
+    if(performance.now()-_postCureForce>2000){
+      console.warn('[BRUTE] Post-cure no enemies! Force-spawning wave',wave);
+      _postCureForce=0;
+      spawnWave();
     }
   }
 
